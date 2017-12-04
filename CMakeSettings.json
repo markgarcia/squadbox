@@ -8,7 +8,7 @@
   "environments": [
     {
       // Please point this to your own vcpkg path
-      "CMAKE_TOOLCHAIN_FILE": "C:\\Code\\Libraries\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
+      "CMAKE_TOOLCHAIN_FILE": "C:/Code/Libraries/vcpkg/scripts/buildsystems/vcpkg.cmake"
     }
   ],
   "configurations": [
@@ -17,10 +17,10 @@
       "generator": "Visual Studio 15 2017",
       "configurationType": "Debug",
       "inheritEnvironments": [ "msvc_x86" ],
-      "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
-      "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
+      "buildRoot": "${env.USERPROFILE}/CMakeBuilds/${workspaceHash}/build/${name}",
+      "installRoot": "${env.USERPROFILE}/CMakeBuilds/${workspaceHash}/install/${name}",
       "cmakeCommandArgs": "",
-      "buildCommandArgs": "-m",
+      "buildCommandArgs": "-m -v:minimal",
       "ctestCommandArgs": "",
       "variables": [
         {
@@ -34,8 +34,8 @@
       "generator": "Visual Studio 15 2017",
       "configurationType": "RelWithDebInfo",
       "inheritEnvironments": [ "msvc_x86" ],
-      "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
-      "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
+      "buildRoot": "${env.USERPROFILE}/CMakeBuilds/${workspaceHash}/build/${name}",
+      "installRoot": "${env.USERPROFILE}/CMakeBuilds/${workspaceHash}/install/${name}",
       "cmakeCommandArgs": "",
       "buildCommandArgs": "-m -v:minimal",
       "ctestCommandArgs": "",
@@ -51,8 +51,8 @@
       "generator": "Visual Studio 15 2017 Win64",
       "configurationType": "Debug",
       "inheritEnvironments": [ "msvc_x64_x64" ],
-      "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
-      "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
+      "buildRoot": "${env.USERPROFILE}/CMakeBuilds/${workspaceHash}/build/${name}",
+      "installRoot": "${env.USERPROFILE}/CMakeBuilds/${workspaceHash}/install/${name}",
       "cmakeCommandArgs": "",
       "buildCommandArgs": "-m -v:minimal",
       "ctestCommandArgs": "",
@@ -68,8 +68,8 @@
       "generator": "Visual Studio 15 2017 Win64",
       "configurationType": "RelWithDebInfo",
       "inheritEnvironments": [ "msvc_x64_x64" ],
-      "buildRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\build\\${name}",
-      "installRoot": "${env.USERPROFILE}\\CMakeBuilds\\${workspaceHash}\\install\\${name}",
+      "buildRoot": "${env.USERPROFILE}/CMakeBuilds/${workspaceHash}/build/${name}",
+      "installRoot": "${env.USERPROFILE}/CMakeBuilds/${workspaceHash}/install/${name}",
       "cmakeCommandArgs": "",
       "buildCommandArgs": "-m -v:minimal",
       "ctestCommandArgs": "",

@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.8)
 project(squadbox)
 
 set(SQUADBOX_SRC
-	main.cpp)
+	main.cpp
+    glfw_raii.hpp
+    glfw_raii.cpp
+    vulkan_manager.hpp
+    vulkan_manager.cpp)
 
 add_executable(squadbox ${SQUADBOX_SRC})
 
