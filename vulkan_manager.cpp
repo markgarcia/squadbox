@@ -173,10 +173,10 @@ void vulkan_manager::resize_framebuffer(std::uint32_t width, std::uint32_t heigh
             .setQueueFamilyIndexCount(0);
     }
 
-    m_swapchain = m_device->createSwapchainKHRUnique(swapchain_ci);
+    auto new_swapchain = m_device->createSwapchainKHRUnique(swapchain_ci);
 
-    m_swapchain_images = [&]() {
-        auto swapchain_images = m_device->getSwapchainImagesKHR(m_swapchain.get());
+    auto new_swapchain_images = [&]() {
+        auto swapchain_images = m_device->getSwapchainImagesKHR(new_swapchain.get());
 
         std::vector<std::tuple<vk::Image, vk::UniqueImageView>> swapchain_images_store;
         swapchain_images_store.reserve(swapchain_images.size());
@@ -195,6 +195,9 @@ void vulkan_manager::resize_framebuffer(std::uint32_t width, std::uint32_t heigh
 
         return swapchain_images_store;
     }();
+
+    m_swapchain_images = std::move(new_swapchain_images);
+    m_swapchain = std::move(new_swapchain);
 }
 
 }
