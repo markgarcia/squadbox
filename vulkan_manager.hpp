@@ -3,13 +3,11 @@
 
 #pragma once
 
-#define _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
 #include <gsl/gsl>
-#undef _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
 
 #include <vulkan/vulkan.hpp>
-#include <GLFW/glfw3.h>
 
+struct GLFWwindow;
 
 namespace squadbox {
 
@@ -19,13 +17,15 @@ public:
 
     void resize_framebuffer(std::uint32_t width, std::uint32_t height);
 
-    const vk::UniqueInstance& instance() const { return m_instance; }
+    const vk::Instance& instance() const { return m_instance.get(); }
     const vk::PhysicalDevice& physical_device() const { return m_physical_device; }
-    const vk::UniqueDevice& device() const { return m_device; }
-    const vk::UniqueSurfaceKHR& surface() const { return m_surface; }
+    const vk::Device& device() const { return m_device.get(); }
+    const vk::SurfaceKHR& surface() const { return m_surface.get(); }
+    const vk::RenderPass& render_pass() const { return m_render_pass.get(); }
 
     std::uint32_t graphics_queue_family_index() const { return m_graphics_queue_family_index; }
     std::uint32_t present_queue_family_index() const { return m_present_queue_family_index; }
+    const vk::SurfaceFormatKHR& surface_format() const { return m_surface_format; }
 
 private:
     vulkan_manager(gsl::not_null<GLFWwindow*> window);
@@ -35,8 +35,10 @@ private:
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueDevice m_device;
     vk::UniqueCommandPool m_command_pool;
+    vk::UniqueRenderPass m_render_pass;
     vk::UniqueSwapchainKHR m_swapchain;
     std::vector<std::tuple<vk::Image, vk::UniqueImageView>> m_swapchain_images;
+    std::vector<vk::UniqueFramebuffer> m_framebuffers;
 
     std::uint32_t m_graphics_queue_family_index;
     std::uint32_t m_present_queue_family_index;
