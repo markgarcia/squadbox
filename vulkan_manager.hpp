@@ -34,7 +34,6 @@ private:
     vk::PhysicalDevice m_physical_device;
     vk::UniqueSurfaceKHR m_surface;
     vk::UniqueDevice m_device;
-    vk::UniqueCommandPool m_command_pool;
     vk::UniqueRenderPass m_render_pass;
     vk::UniqueSwapchainKHR m_swapchain;
     std::vector<std::tuple<vk::Image, vk::UniqueImageView>> m_swapchain_images;

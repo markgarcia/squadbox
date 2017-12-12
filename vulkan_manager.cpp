@@ -93,12 +93,6 @@ vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
         return physical_device.createDeviceUnique(device_ci);
     }(m_physical_device, m_graphics_queue_family_index);
 
-    m_command_pool = [](const vk::Device& device, std::uint32_t graphics_queue_family_index) {
-        vk::CommandPoolCreateInfo command_pool_ci;
-        command_pool_ci.setQueueFamilyIndex(graphics_queue_family_index);
-        return device.createCommandPoolUnique(command_pool_ci);
-    }(m_device.get(), m_graphics_queue_family_index);
-
     {
         auto surface_formats = m_physical_device.getSurfaceFormatsKHR(m_surface.get());
         if (surface_formats.size() == 1) {
@@ -140,8 +134,8 @@ vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
             .setAttachment(0)
             .setLayout(vk::ImageLayout::eColorAttachmentOptimal);
 
-        vk::SubpassDescription subpass_desc;
-        subpass_desc
+        std::array<vk::SubpassDescription, 1> subpasses;
+        subpasses[0]
             .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
             .setPColorAttachments(&color_reference)
             .setColorAttachmentCount(1);
@@ -150,8 +144,8 @@ vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
         render_pass_ci
             .setPAttachments(&color_attachment_desc)
             .setAttachmentCount(1)
-            .setPSubpasses(&subpass_desc)
-            .setSubpassCount(1);
+            .setPSubpasses(subpasses.data())
+            .setSubpassCount(subpasses.size());
 
         return device.createRenderPassUnique(render_pass_ci);
     }(m_device.get(), m_surface_format);
@@ -182,24 +176,46 @@ void vulkan_manager::resize_framebuffer(std::uint32_t width, std::uint32_t heigh
         }
 
         vk::SurfaceTransformFlagBitsKHR pre_transform;
-        if (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
-            pre_transform = vk::SurfaceTransformFlagBitsKHR::eIdentity;
+        {
+            if (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
+                pre_transform = vk::SurfaceTransformFlagBitsKHR::eIdentity;
+            }
+            else {
+                pre_transform = surface_capabilities.currentTransform;
+            }
         }
-        else {
-            pre_transform = surface_capabilities.currentTransform;
+
+        vk::CompositeAlphaFlagBitsKHR composite_alpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
+        {
+            std::array<vk::CompositeAlphaFlagBitsKHR, 4> composite_alpha_flags = {
+                vk::CompositeAlphaFlagBitsKHR::eOpaque,
+                vk::CompositeAlphaFlagBitsKHR::ePreMultiplied,
+                vk::CompositeAlphaFlagBitsKHR::ePostMultiplied,
+                vk::CompositeAlphaFlagBitsKHR::eInherit,
+            };
+            for (auto flag : composite_alpha_flags) {
+                if (surface_capabilities.supportedCompositeAlpha & flag) {
+                    composite_alpha = flag;
+                    break;
+                }
+            }
         }
 
         vk::SwapchainCreateInfoKHR swapchain_ci;
         swapchain_ci
             .setSurface(surface)
-            .setImageFormat(surface_format.format)
-            .setImageColorSpace(surface_format.colorSpace)
             .setMinImageCount(surface_capabilities.minImageCount)
             .setImageExtent(swapchain_extent)
+            .setImageFormat(surface_format.format)
+            .setImageColorSpace(surface_format.colorSpace)
+            .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)
+            .setImageSharingMode(vk::SharingMode::eExclusive)
             .setPreTransform(pre_transform)
+            .setCompositeAlpha(composite_alpha)
+            .setImageArrayLayers(1)
             .setPresentMode(vk::PresentModeKHR::eFifo)
-            .setOldSwapchain(swapchain)
-            .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc);
+            .setClipped(true)
+            .setOldSwapchain(swapchain);
 
         if (graphics_queue_family_index != present_queue_family_index) {
             std::array<decltype(graphics_queue_family_index), 2> queue_families = { graphics_queue_family_index, present_queue_family_index };
@@ -232,7 +248,12 @@ void vulkan_manager::resize_framebuffer(std::uint32_t width, std::uint32_t heigh
                 .setImage(image)
                 .setViewType(vk::ImageViewType::e2D)
                 .setFormat(surface_format.format)
-                .setSubresourceRange({ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+                .subresourceRange
+                    .setAspectMask(vk::ImageAspectFlagBits::eColor)
+                    .setBaseMipLevel(0)
+                    .setLevelCount(1)
+                    .setBaseArrayLayer(0)
+                    .setLayerCount(1);
 
             auto image_view = device.createImageViewUnique(image_view_ci);
             swapchain_images_store.emplace_back(image, std::move(image_view));
