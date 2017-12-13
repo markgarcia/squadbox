@@ -155,7 +155,7 @@ vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
     resize_framebuffer(width, height);
 }
 
-void vulkan_manager::resize_framebuffer(std::uint32_t width, std::uint32_t height) {
+void vulkan_manager::resize_framebuffer(const std::uint32_t width, const std::uint32_t height) {
     m_device->waitIdle();
 
     auto new_swapchain = [](const vk::PhysicalDevice& physical_device, const vk::Device& device,
@@ -264,7 +264,7 @@ void vulkan_manager::resize_framebuffer(std::uint32_t width, std::uint32_t heigh
 
     auto new_framebuffers = [](const vk::Device& device, const vk::RenderPass& render_pass,
                                const std::vector<std::tuple<vk::Image, vk::UniqueImageView>>& swapchain_images,
-                               std::uint32_t width, std::uint32_t height) {
+                               const std::uint32_t width, const std::uint32_t height) {
         std::array<vk::ImageView, 1> attachments;
 
         vk::FramebufferCreateInfo framebuffer_ci;
@@ -290,6 +290,9 @@ void vulkan_manager::resize_framebuffer(std::uint32_t width, std::uint32_t heigh
     m_framebuffers = std::move(new_framebuffers);
     m_swapchain_images = std::move(new_swapchain_images);
     m_swapchain = std::move(new_swapchain);
+
+    m_framebuffer_width = width;
+    m_framebuffer_height = height;
 }
 
 }

@@ -3,25 +3,27 @@ project(squadbox)
 
 set(SQUADBOX_SRC
 	main.cpp
-    glfw_raii.hpp
-    glfw_raii.cpp
-    vulkan_manager.hpp
-    vulkan_manager.cpp)
+    glfw_wrappers.hpp   glfw_wrappers.cpp
+    imgui_glue.hpp      imgui_glue.cpp
+    vulkan_manager.hpp  vulkan_manager.cpp
+    vulkan_utils.hpp    vulkan_utils.cpp)
 
 add_executable(squadbox ${SQUADBOX_SRC})
 
 if(MSVC)
 	target_compile_options(squadbox PRIVATE /std:c++latest /permissive-)
+
 	if(CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
 		string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	else()
 	    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
 	endif()
+
+    target_compile_definitions(squadbox PRIVATE UNICODE NOMINMAX)
 endif()
 
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
-find_package(GLEW REQUIRED)
 find_package(glm REQUIRED)
 find_package(boost REQUIRED)
 
@@ -49,7 +51,7 @@ endif()
 
 target_link_libraries(squadbox
     Vulkan::Vulkan
-    glfw GLEW::GLEW glm
+    glfw glm
     ${ASSIMP_LIBRARIES}
     imgui
     Boost::boost Boost::dynamic_linking)

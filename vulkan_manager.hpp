@@ -22,6 +22,13 @@ public:
     const vk::Device& device() const { return m_device.get(); }
     const vk::SurfaceKHR& surface() const { return m_surface.get(); }
     const vk::RenderPass& render_pass() const { return m_render_pass.get(); }
+    const vk::SwapchainKHR& swapchain() const { return m_swapchain.get(); }
+
+    void set_current_framebuffer_idx(std::uint32_t idx) { m_current_framebuffer_idx = idx; }
+    std::uint32_t current_framebuffer_idx() const { return m_current_framebuffer_idx; }
+    const vk::Framebuffer& current_framebuffer() const { return m_framebuffers.at(m_current_framebuffer_idx).get(); }
+    std::uint32_t framebuffer_width() const { return m_framebuffer_width; }
+    std::uint32_t framebuffer_height() const { return m_framebuffer_height; }
 
     std::uint32_t graphics_queue_family_index() const { return m_graphics_queue_family_index; }
     std::uint32_t present_queue_family_index() const { return m_present_queue_family_index; }
@@ -38,10 +45,13 @@ private:
     vk::UniqueSwapchainKHR m_swapchain;
     std::vector<std::tuple<vk::Image, vk::UniqueImageView>> m_swapchain_images;
     std::vector<vk::UniqueFramebuffer> m_framebuffers;
+    std::uint32_t m_current_framebuffer_idx;
 
-    std::uint32_t m_graphics_queue_family_index;
-    std::uint32_t m_present_queue_family_index;
+    std::size_t m_graphics_queue_family_index;
+    std::size_t m_present_queue_family_index;
     vk::SurfaceFormatKHR m_surface_format;
+    std::uint32_t m_framebuffer_width;
+    std::uint32_t m_framebuffer_height;
 };
 
 inline vulkan_manager init_vulkan(gsl::not_null<GLFWwindow*> window) {

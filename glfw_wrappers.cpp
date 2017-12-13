@@ -1,4 +1,4 @@
-#include "glfw_raii.hpp"
+#include "glfw_wrappers.hpp"
 
 namespace squadbox {
 
