@@ -28,22 +28,40 @@ find_package(glm REQUIRED)
 find_package(boost REQUIRED)
 
 find_package(assimp REQUIRED)
-target_include_directories(squadbox PRIVATE ${ASSIMP_INCLUDE_DIRS})
-#target_compile_options(squadbox PRIVATE ${ASSIMP_CXX_FLAGS})
+add_library(assimp SHARED IMPORTED)
+set_target_properties(assimp PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES ${ASSIMP_INCLUDE_DIRS}
+    #INTERFACE_COMPILE_DEFINITIONS ${ASSIMP_CXX_FLAGS}
+    )
+
+if(WIN32)
+    find_library(ASSIMP_DEBUG_LIBRARY assimp${ASSIMP_LIBRARY_SUFFIX}d)
+    find_file(ASSIMP_DEBUG_DLL bin/assimp${ASSIMP_LIBRARY_SUFFIX}d.dll)
+    set_target_properties(assimp PROPERTIES
+                          IMPORTED_IMPLIB_DEBUG ${ASSIMP_DEBUG_LIBRARY}
+                          IMPORTED_LOCATION_DEBUG ${ASSIMP_DEBUG_DLL})
+
+    find_library(ASSIMP_RELEASE_LIBRARY assimp${ASSIMP_LIBRARY_SUFFIX}d)
+    find_file(ASSIMP_RELEASE_DLL bin/assimp${ASSIMP_LIBRARY_SUFFIX}.dll)
+    set_target_properties(assimp PROPERTIES
+                          IMPORTED_IMPLIB_RELEASE ${ASSIMP_RELEASE_LIBRARY}
+                          IMPORTED_LOCATION_RELEASE ${ASSIMP_RELEASE_DLL})
+endif()
 
 add_library(imgui SHARED IMPORTED)
 
 if(WIN32)
     find_library(IMGUI_DEBUG_LIBRARY imguid)
     find_file(IMGUI_DEBUG_DLL bin/imguid.dll)
-    
-    set_target_properties(imgui PROPERTIES IMPORTED_IMPLIB_DEBUG ${IMGUI_DEBUG_LIBRARY})
-    set_target_properties(imgui PROPERTIES IMPORTED_LOCATION_DEBUG ${IMGUI_DEBUG_DLL})
+    set_target_properties(imgui PROPERTIES
+                          IMPORTED_IMPLIB_DEBUG ${IMGUI_DEBUG_LIBRARY}
+                          IMPORTED_LOCATION_DEBUG ${IMGUI_DEBUG_DLL})
 
     find_library(IMGUI_RELEASE_LIBRARY imgui)
     find_file(IMGUI_RELEASE_DLL bin/imgui.dll)
-    set_target_properties(imgui PROPERTIES IMPORTED_IMPLIB_RELEASE ${IMGUI_RELEASE_LIBRARY})
-    set_target_properties(imgui PROPERTIES IMPORTED_LOCATION_RELEASE ${IMGUI_RELEASE_DLL})
+    set_target_properties(imgui PROPERTIES
+                          IMPORTED_IMPLIB_RELEASE ${IMGUI_RELEASE_LIBRARY}
+                          IMPORTED_LOCATION_RELEASE ${IMGUI_RELEASE_DLL})
 else()
     find_library(IMGUI_LIBRARY imgui)
     set_target_properties(imgui PROPERTIES IMPORTED_IMPLIB ${IMGUI_LIBRARY})
@@ -52,7 +70,7 @@ endif()
 target_link_libraries(squadbox
     Vulkan::Vulkan
     glfw glm
-    ${ASSIMP_LIBRARIES}
+    assimp
     imgui
     Boost::boost Boost::dynamic_linking)
 
