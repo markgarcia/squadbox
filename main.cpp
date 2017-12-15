@@ -14,7 +14,7 @@ int main() {
 
 #if _DEBUG
     // Until support for setting environment variables in CMake for Visual Studio is made...
-    _putenv("VK_INSTANCE_LAYERS=VK_LAYER_LUNARG_standard_validation");
+    _putenv("VK_INSTANCE_LAYERS=VK_LAYER_LUNARG_standard_validation;VK_LAYER_LUNARG_monitor");
 #endif
     
     boost::basic_thread_pool thread_pool;
