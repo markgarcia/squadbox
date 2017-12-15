@@ -46,6 +46,8 @@ if(WIN32)
     set_target_properties(assimp PROPERTIES
                           IMPORTED_IMPLIB_RELEASE ${ASSIMP_RELEASE_LIBRARY}
                           IMPORTED_LOCATION_RELEASE ${ASSIMP_RELEASE_DLL})
+else()
+    set_target_properties(assimp PROPERTIES IMPORTED_IMPLIB ${ASSIMP_LIBRARIES})
 endif()
 
 add_library(imgui SHARED IMPORTED)
