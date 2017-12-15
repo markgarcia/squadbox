@@ -3,7 +3,9 @@
 #include "vulkan_utils.hpp"
 #include "glfw_wrappers.hpp"
 
-#include <future>
+#include <boost/thread/executors/basic_thread_pool.hpp>
+#include <boost/thread/future.hpp>
+
 #include <chrono>
 
 
@@ -14,6 +16,8 @@ int main() {
     // Until support for setting environment variables in CMake for Visual Studio is made...
     _putenv("VK_INSTANCE_LAYERS=VK_LAYER_LUNARG_standard_validation");
 #endif
+    
+    boost::basic_thread_pool thread_pool;
     
     auto& glfw = init_glfw();
 
@@ -126,7 +130,7 @@ int main() {
                     .setSubpass(0)
                     .setFramebuffer(vulkan_manager.current_framebuffer());
 
-                auto imgui_render_future = std::async(std::launch::async, [&imgui_glue, command_buffer_inheritance_info]() {
+                auto imgui_render_future = boost::async(thread_pool, [&imgui_glue, command_buffer_inheritance_info]() {
                     return imgui_glue.render(command_buffer_inheritance_info);
                 });
 

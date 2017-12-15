@@ -19,13 +19,14 @@ if(MSVC)
 	    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
 	endif()
 
-    target_compile_definitions(squadbox PRIVATE UNICODE NOMINMAX)
+    target_compile_definitions(squadbox PRIVATE
+        UNICODE NOMINMAX _SCL_SECURE_NO_WARNINGS _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
 endif()
 
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
-find_package(boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS thread)
 
 find_package(assimp REQUIRED)
 add_library(assimp SHARED IMPORTED)
@@ -69,17 +70,21 @@ else()
     set_target_properties(imgui PROPERTIES IMPORTED_IMPLIB ${IMGUI_LIBRARY})
 endif()
 
+target_compile_definitions(squadbox PRIVATE
+    BOOST_THREAD_PROVIDES_EXECUTORS
+    BOOST_THREAD_VERSION=4)
+
 target_link_libraries(squadbox
     Vulkan::Vulkan
     glfw glm
     assimp
     imgui
-    Boost::boost Boost::dynamic_linking)
+    Boost::boost Boost::thread Boost::dynamic_linking)
 
 include(./cmake/compile_glsl.cmake)
 
 compile_glsl(TARGET squadbox
-             OUTPUT_DIR ./shaders/compiled/
-             FILES
-             ./shaders/imgui.vert
-             ./shaders/imgui.frag)
+    OUTPUT_DIR ./shaders/compiled/
+    FILES
+    ./shaders/imgui.vert
+    ./shaders/imgui.frag)
