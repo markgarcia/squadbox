@@ -9,7 +9,7 @@
 
 struct GLFWwindow;
 
-namespace squadbox {
+namespace squadbox::gfx {
 
 class vulkan_manager {
 public:

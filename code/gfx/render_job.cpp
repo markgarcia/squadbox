@@ -1,5 +1,5 @@
 #include "render_job.hpp"
 
-namespace squadbox {
+namespace squadbox::gfx {
 
 }

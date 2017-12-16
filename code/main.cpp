@@ -12,7 +12,7 @@
 struct frame {
     std::uint32_t framebuffer_idx;
     vk::Framebuffer framebuffer;
-    std::vector<squadbox::render_job> jobs;
+    std::vector<squadbox::gfx::render_job> jobs;
     vk::UniqueCommandBuffer command_buffer;
     vk::UniqueFence fence;
     vk::UniqueSemaphore framebuffer_image_acquire_semaphore;
@@ -28,13 +28,13 @@ int main() {
     
     boost::basic_thread_pool thread_pool;
     
-    auto& glfw = init_glfw();
+    auto& glfw = gfx::init_glfw();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-    glfw_window window { glfwCreateWindow(800, 600, "squadbox", nullptr, nullptr) };
-    vulkan_manager vulkan_manager { window.get() };
-    imgui_glue imgui_glue { window.get(), vulkan_manager };
+    gfx::glfw_window window { glfwCreateWindow(800, 600, "squadbox", nullptr, nullptr) };
+    gfx::vulkan_manager vulkan_manager { window.get() };
+    gfx::imgui_glue imgui_glue { window.get(), vulkan_manager };
 
     {
         auto render_job = imgui_glue.load_font_textures();
@@ -50,29 +50,29 @@ int main() {
         vulkan_manager.device().waitIdle();
     }
 
-    auto framebuffer_resize_callback = glfw_framebuffer_resize_callback(window.get(), [&vulkan_manager](GLFWwindow*, int width, int height) {
+    auto framebuffer_resize_callback = gfx::glfw_framebuffer_resize_callback(window.get(), [&vulkan_manager](GLFWwindow*, int width, int height) {
         vulkan_manager.resize_framebuffer(width, height);
     });
 
-    auto key_callback = glfw_key_callback(window.get(), [&imgui_glue](GLFWwindow*, int key, int /*scancode*/, int action, int /*mode*/) {
-        imgui_glue::key_info key_info;
+    auto key_callback = gfx::glfw_key_callback(window.get(), [&imgui_glue](GLFWwindow*, int key, int /*scancode*/, int action, int /*mode*/) {
+        gfx::imgui_glue::key_info key_info;
         key_info.key = key;
         key_info.action = action;
         imgui_glue.key_event(key_info);
     });
 
-    auto mouse_callback = glfw_mouse_button_callback(window.get(), [&imgui_glue](GLFWwindow*, int button, int action, int /*mods*/) {
-        imgui_glue::mouse_button_info mouse_button_info;
+    auto mouse_callback = gfx::glfw_mouse_button_callback(window.get(), [&imgui_glue](GLFWwindow*, int button, int action, int /*mods*/) {
+        gfx::imgui_glue::mouse_button_info mouse_button_info;
         mouse_button_info.button = button;
         mouse_button_info.action = action;
         imgui_glue.mouse_button_event(mouse_button_info);
     });
 
-    auto scroll_callback = glfw_scroll_callback(window.get(), [&imgui_glue](GLFWwindow*, double /*x_offset*/, double y_offset) {
+    auto scroll_callback = gfx::glfw_scroll_callback(window.get(), [&imgui_glue](GLFWwindow*, double /*x_offset*/, double y_offset) {
         imgui_glue.scroll_event(y_offset);
     });
 
-    auto char_callback = glfw_char_callback(window.get(), [&imgui_glue](GLFWwindow*, unsigned int c) {
+    auto char_callback = gfx::glfw_char_callback(window.get(), [&imgui_glue](GLFWwindow*, unsigned int c) {
         imgui_glue.char_event(c);
     });
 
@@ -125,7 +125,7 @@ int main() {
 
                 current_frame.jobs.clear();
 
-                current_frame.command_buffer = vk_utils::create_primary_command_buffer(vulkan_manager.device(), command_pool.get());
+                current_frame.command_buffer = gfx::vk_utils::create_primary_command_buffer(vulkan_manager.device(), command_pool.get());
                 {
                     current_frame.framebuffer_idx
                         = vulkan_manager.device().acquireNextImageKHR(

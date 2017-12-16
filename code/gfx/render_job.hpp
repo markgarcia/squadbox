@@ -9,7 +9,7 @@
 #include <memory>
 #include <tuple>
 
-namespace squadbox {
+namespace squadbox::gfx {
 
 struct render_job_command_buffer_base {
     vk::UniqueCommandBuffer command_buffer;

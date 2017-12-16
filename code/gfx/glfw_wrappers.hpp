@@ -9,7 +9,7 @@
 #include <mutex>
 #include <string>
 
-namespace squadbox {
+namespace squadbox::gfx {
 
 class [[nodiscard]] glfw_raii {
     static std::mutex mutex;

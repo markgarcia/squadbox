@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 
-namespace squadbox::vk_utils {
+namespace squadbox::gfx::vk_utils {
 
 std::uint32_t get_memory_type_index(const vk::Device& device, const vk::PhysicalDeviceMemoryProperties& device_memory_properties,
                                     const vk::MemoryRequirements& memory_requirements, vk::MemoryPropertyFlags required_memory_props) {
@@ -13,7 +13,7 @@ std::uint32_t get_memory_type_index(const vk::Device& device, const vk::Physical
         }
     }
 
-    throw std::runtime_error("squadbox::vk_utils::get_memory_type_index: failed to find memory type");
+    throw std::runtime_error("Vulkan: failed to find memory type");
 }
 
 vk::UniqueDeviceMemory alloc_memory(const vk::Device& device, const vk::PhysicalDeviceMemoryProperties& device_memory_properties,
@@ -23,7 +23,7 @@ vk::UniqueDeviceMemory alloc_memory(const vk::Device& device, const vk::Physical
         memory_type_index = get_memory_type_index(device, device_memory_properties, memory_requirements, required_memory_props);
     }
     catch (const std::runtime_error& e) {
-        std::throw_with_nested(std::runtime_error("squadbox::vk_utils::alloc_memory: failed to allocate required memory type"));
+        std::throw_with_nested(std::runtime_error("Vulkan: failed to allocate required memory type"));
     }
 
     vk::MemoryAllocateInfo memory_alloc_info;

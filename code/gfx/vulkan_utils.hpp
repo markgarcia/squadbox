@@ -5,7 +5,7 @@
 
 #include <vulkan/vulkan.hpp>
 
-namespace squadbox::vk_utils {
+namespace squadbox::gfx::vk_utils {
 
 std::uint32_t get_memory_type_index(const vk::Device& device, const vk::PhysicalDeviceMemoryProperties& device_memory_properties,
                                     const vk::MemoryRequirements& memory_requirements, vk::MemoryPropertyFlags required_memory_props);

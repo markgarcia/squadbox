@@ -4,7 +4,7 @@
 
 #include <array>
 
-namespace squadbox {
+namespace squadbox::gfx {
 
 vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
     auto required_glfw_extensions = []() {
@@ -208,7 +208,7 @@ void vulkan_manager::resize_framebuffer(const std::uint32_t width, const std::ui
         auto present_modes = physical_device.getSurfacePresentModesKHR(surface);
         std::array<vk::PresentModeKHR, 2> required_present_modes = { vk::PresentModeKHR::eFifo, vk::PresentModeKHR::eImmediate };
         auto present_mode = std::find_first_of(present_modes.begin(), present_modes.end(), required_present_modes.begin(), required_present_modes.end());
-        if (present_mode == present_modes.end()) throw std::runtime_error("squadbox::vulkan_manager::resize_framebuffer: required present mode(s) not found");
+        if (present_mode == present_modes.end()) throw std::runtime_error("Vulkan: required present mode(s) not found");
 
         vk::SwapchainCreateInfoKHR swapchain_ci;
         swapchain_ci

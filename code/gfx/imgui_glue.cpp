@@ -11,7 +11,7 @@
 
 // Much of these based on https://github.com/ocornut/imgui/tree/master/examples/vulkan_example
 
-namespace squadbox {
+namespace squadbox::gfx {
 
 imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& vulkan_manager)
     : m_window(window), m_device(vulkan_manager.device()) {
