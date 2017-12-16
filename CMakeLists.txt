@@ -5,6 +5,7 @@ set(SQUADBOX_SRC
 	main.cpp
     glfw_wrappers.hpp   glfw_wrappers.cpp
     imgui_glue.hpp      imgui_glue.cpp
+    render_job.hpp      render_job.cpp
     vulkan_manager.hpp  vulkan_manager.cpp
     vulkan_utils.hpp    vulkan_utils.cpp)
 

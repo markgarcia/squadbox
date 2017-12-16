@@ -155,26 +155,22 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
             .setStride(sizeof(ImDrawVert))
             .setInputRate(vk::VertexInputRate::eVertex);
 
-        auto get_offset = [](auto ImDrawVert::*member) -> std::size_t {
-            return (std::size_t)(&((ImDrawVert*)nullptr->*member));
-        };
-
         std::array<vk::VertexInputAttributeDescription, 3> vert_input_attr_desc;
         vert_input_attr_desc[0]
             .setLocation(0)
             .setBinding(vert_input_binding_desc.binding)
             .setFormat(vk::Format::eR32G32Sfloat)
-            .setOffset(get_offset(&ImDrawVert::pos));
+            .setOffset(offsetof(ImDrawVert, pos));
         vert_input_attr_desc[1]
             .setLocation(1)
             .setBinding(vert_input_binding_desc.binding)
             .setFormat(vk::Format::eR32G32Sfloat)
-            .setOffset(get_offset(&ImDrawVert::uv));
+            .setOffset(offsetof(ImDrawVert, uv));
         vert_input_attr_desc[2]
             .setLocation(2)
             .setBinding(vert_input_binding_desc.binding)
             .setFormat(vk::Format::eR8G8B8A8Unorm)
-            .setOffset(get_offset(&ImDrawVert::col));
+            .setOffset(offsetof(ImDrawVert, col));
 
         vk::PipelineVertexInputStateCreateInfo pipeline_vert_input_state_ci;
         pipeline_vert_input_state_ci
@@ -300,7 +296,8 @@ imgui_glue::~imgui_glue() {
     ImGui::Shutdown();
 }
 
-std::tuple<vk::UniqueCommandBuffer, vk::UniqueBuffer, vk::UniqueDeviceMemory> imgui_glue::load_font_textures() {
+/*std::tuple<vk::UniqueCommandBuffer, vk::UniqueBuffer, vk::UniqueDeviceMemory>*/
+render_job imgui_glue::load_font_textures() {
     ImGuiIO& imgui_io = ImGui::GetIO();
 
     gsl::span<unsigned char> font_image_pixels;
@@ -479,7 +476,7 @@ std::tuple<vk::UniqueCommandBuffer, vk::UniqueBuffer, vk::UniqueDeviceMemory> im
     m_font_image_view = std::move(new_font_image_view);
     imgui_io.Fonts->SetTexID(reinterpret_cast<ImTextureID>(static_cast<VkImage>(m_font_image.get())));
 
-    return std::make_tuple(std::move(font_image_copy_command_buffer), std::move(font_staging_buffer), std::move(font_staging_buffer_memory));
+    return render_job { std::move(font_image_copy_command_buffer), std::make_tuple(std::move(font_staging_buffer), std::move(font_staging_buffer_memory)) };
 }
 
 void imgui_glue::new_frame(std::chrono::duration<double> delta) {
@@ -518,16 +515,25 @@ void imgui_glue::new_frame(std::chrono::duration<double> delta) {
     ImGui::NewFrame();
 }
 
-vk::UniqueCommandBuffer imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_buffer_inheritance_info) {
+render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_buffer_inheritance_info) {
     ImGui::Render();
 
     const auto& imgui_draw_data = *ImGui::GetDrawData();
     const auto required_vertex_buffer_size = std::max(1, imgui_draw_data.TotalVtxCount) * sizeof(ImDrawVert);
     const auto required_index_buffer_size = std::max(1, imgui_draw_data.TotalIdxCount) * sizeof(ImDrawIdx);
 
-    if (!m_vertex_buffer || !m_index_buffer
-        || m_vertex_buffer_size < required_vertex_buffer_size
-        || m_index_buffer_size < required_index_buffer_size) {
+    vk::CommandBufferAllocateInfo command_buffer_alloc_info;
+    command_buffer_alloc_info
+        .setCommandPool(m_command_pool.get())
+        .setLevel(vk::CommandBufferLevel::eSecondary)
+        .setCommandBufferCount(1);
+
+    auto render_job = m_render_job_pool.create(m_device, command_buffer_alloc_info);
+    auto& render_data = render_job.data();
+
+    if (!render_data.vertex_buffer || !render_data.index_buffer
+        || render_data.vertex_buffer_size < required_vertex_buffer_size
+        || render_data.index_buffer_size < required_index_buffer_size) {
         auto new_vertex_buffer = [](const vk::Device& device, const vk::DeviceSize required_vertex_buffer_size) {
             vk::BufferCreateInfo vertex_buffer_ci;
             vertex_buffer_ci
@@ -582,23 +588,23 @@ vk::UniqueCommandBuffer imgui_glue::render(const vk::CommandBufferInheritanceInf
                 return std::make_tuple(vk::UniqueDeviceMemory { nullptr }, required_device_memory_size,
                                        vertex_buffer_offset, index_buffer_offset);
             }
-        }(m_device, m_device_memory_props, new_vertex_buffer.get(), new_index_buffer.get(), m_vertex_index_buffers_memory_size);
+        }(m_device, m_device_memory_props, new_vertex_buffer.get(), new_index_buffer.get(), render_data.vertex_index_buffers_memory_size);
 
-        m_vertex_buffer = std::move(new_vertex_buffer);
-        m_vertex_buffer_size = required_vertex_buffer_size;
-        m_vertex_buffer_memory_offset = new_vertex_buffer_offset;
+        render_data.vertex_buffer = std::move(new_vertex_buffer);
+        render_data.vertex_buffer_size = required_vertex_buffer_size;
+        render_data.vertex_buffer_memory_offset = new_vertex_buffer_offset;
 
-        m_index_buffer = std::move(new_index_buffer);
-        m_index_buffer_size = required_index_buffer_size;
-        m_index_buffer_memory_offset = new_index_buffer_offset;
+        render_data.index_buffer = std::move(new_index_buffer);
+        render_data.index_buffer_size = required_index_buffer_size;
+        render_data.index_buffer_memory_offset = new_index_buffer_offset;
 
         if (new_vertex_index_buffers_memory) {
-            m_vertex_index_buffers_memory = std::move(new_vertex_index_buffers_memory);
-            m_vertex_index_buffers_memory_size = new_vertex_index_buffers_memory_size;
+            render_data.vertex_index_buffers_memory = std::move(new_vertex_index_buffers_memory);
+            render_data.vertex_index_buffers_memory_size = new_vertex_index_buffers_memory_size;
         }
 
-        m_device.bindBufferMemory(m_vertex_buffer.get(), m_vertex_index_buffers_memory.get(), m_vertex_buffer_memory_offset);
-        m_device.bindBufferMemory(m_index_buffer.get(), m_vertex_index_buffers_memory.get(), m_index_buffer_memory_offset);
+        m_device.bindBufferMemory(render_data.vertex_buffer.get(), render_data.vertex_index_buffers_memory.get(), render_data.vertex_buffer_memory_offset);
+        m_device.bindBufferMemory(render_data.index_buffer.get(), render_data.vertex_index_buffers_memory.get(), render_data.index_buffer_memory_offset);
     }
 
     [](const vk::Device& device, const vk::DeviceMemory& vertex_index_buffers_memory,
@@ -619,8 +625,8 @@ vk::UniqueCommandBuffer imgui_glue::render(const vk::CommandBufferInheritanceInf
 
         device.flushMappedMemoryRanges({ vertex_mapped_memory });
         device.unmapMemory(vertex_index_buffers_memory);
-    }(m_device, m_vertex_index_buffers_memory.get(),
-      m_vertex_buffer_size, m_vertex_buffer_memory_offset,
+    }(m_device, render_data.vertex_index_buffers_memory.get(),
+      render_data.vertex_buffer_size, render_data.vertex_buffer_memory_offset,
       imgui_draw_data);
 
     [](const vk::Device& device, const vk::DeviceMemory& vertex_index_buffers_memory,
@@ -641,29 +647,23 @@ vk::UniqueCommandBuffer imgui_glue::render(const vk::CommandBufferInheritanceInf
 
         device.flushMappedMemoryRanges({ index_mapped_memory });
         device.unmapMemory(vertex_index_buffers_memory);
-    }(m_device, m_vertex_index_buffers_memory.get(),
-        m_index_buffer_size, m_index_buffer_memory_offset,
-        imgui_draw_data);
+    }(m_device, render_data.vertex_index_buffers_memory.get(),
+      render_data.index_buffer_size, render_data.index_buffer_memory_offset,
+      imgui_draw_data);
 
-    vk::CommandBufferAllocateInfo command_buffer_alloc_info;
-    command_buffer_alloc_info
-        .setCommandPool(m_command_pool.get())
-        .setLevel(vk::CommandBufferLevel::eSecondary)
-        .setCommandBufferCount(1);
-
-    auto command_buffer = std::move(m_device.allocateCommandBuffersUnique(command_buffer_alloc_info)[0]);
+    const auto& command_buffer = render_job.command_buffer();
 
     vk::CommandBufferBeginInfo command_buffer_begin_info;
     command_buffer_begin_info
         .setFlags(vk::CommandBufferUsageFlagBits::eRenderPassContinue)
         .setPInheritanceInfo(&command_buffer_inheritance_info);
 
-    command_buffer->begin(command_buffer_begin_info);
+    command_buffer.begin(command_buffer_begin_info);
 
-    command_buffer->bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.get());
-    command_buffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline_layout.get(), 0, { m_descriptor_set.get() }, nullptr);
-    command_buffer->bindVertexBuffers(0, { m_vertex_buffer.get() }, { 0 });
-    command_buffer->bindIndexBuffer(m_index_buffer.get(), 0, vk::IndexType::eUint16);
+    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.get());
+    command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline_layout.get(), 0, { m_descriptor_set.get() }, nullptr);
+    command_buffer.bindVertexBuffers(0, { render_data.vertex_buffer.get() }, { 0 });
+    command_buffer.bindIndexBuffer(render_data.index_buffer.get(), 0, vk::IndexType::eUint16);
 
     {
         vk::Viewport viewport;
@@ -675,19 +675,19 @@ vk::UniqueCommandBuffer imgui_glue::render(const vk::CommandBufferInheritanceInf
             .setMinDepth(0.0f)
             .setMaxDepth(1.0f);
 
-        command_buffer->setViewport(0, { viewport });
+        command_buffer.setViewport(0, { viewport });
     }
 
     {
         std::array<float, 2> scale;
         scale[0] = 2.0f / ImGui::GetIO().DisplaySize.x;
         scale[1] = 2.0f / ImGui::GetIO().DisplaySize.y;
-        command_buffer->pushConstants<float>(m_pipeline_layout.get(), vk::ShaderStageFlagBits::eVertex, 0, scale);
+        command_buffer.pushConstants<float>(m_pipeline_layout.get(), vk::ShaderStageFlagBits::eVertex, 0, scale);
 
         std::array<float, 2> translate;
         translate[0] = -1.0f;
         translate[1] = -1.0f;
-        command_buffer->pushConstants<float>(m_pipeline_layout.get(), vk::ShaderStageFlagBits::eVertex, sizeof(scale), translate);
+        command_buffer.pushConstants<float>(m_pipeline_layout.get(), vk::ShaderStageFlagBits::eVertex, sizeof(scale), translate);
     }
 
     {
@@ -708,8 +708,8 @@ vk::UniqueCommandBuffer imgui_glue::render(const vk::CommandBufferInheritanceInf
                         .setWidth(static_cast<std::uint32_t>(cmd.ClipRect.z - cmd.ClipRect.x))
                         .setHeight(static_cast<std::uint32_t>(cmd.ClipRect.w - cmd.ClipRect.y + 1));
 
-                    command_buffer->setScissor(0, { scissor });
-                    command_buffer->drawIndexed(cmd.ElemCount, 1, index_offset, vertex_offset, 0);
+                    command_buffer.setScissor(0, { scissor });
+                    command_buffer.drawIndexed(cmd.ElemCount, 1, index_offset, vertex_offset, 0);
                 }
 
                 index_offset += cmd.ElemCount;
@@ -719,9 +719,9 @@ vk::UniqueCommandBuffer imgui_glue::render(const vk::CommandBufferInheritanceInf
         }
     }
 
-    command_buffer->end();
+    command_buffer.end();
 
-    return command_buffer;
+    return render_job;
 }
 
 void imgui_glue::key_event(const key_info& key_info) {

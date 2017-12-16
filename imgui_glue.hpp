@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "render_job.hpp"
+
 #include <imgui.h>
 #include <vulkan/vulkan.hpp>
 
@@ -35,9 +37,9 @@ public:
     ~imgui_glue();
 
     void new_frame(std::chrono::duration<double> delta);
-    vk::UniqueCommandBuffer render(const vk::CommandBufferInheritanceInfo& command_buffer_inheritance_info);
+    render_job render(const vk::CommandBufferInheritanceInfo& command_buffer_inheritance_info);
 
-    std::tuple<vk::UniqueCommandBuffer, vk::UniqueBuffer, vk::UniqueDeviceMemory> load_font_textures();
+    render_job load_font_textures();
 
     void key_event(const key_info& key_info);
     void mouse_button_event(const mouse_button_info& mouse_button_info);
@@ -71,14 +73,18 @@ private:
     vk::UniqueDeviceMemory m_font_image_memory;
     vk::UniqueImageView m_font_image_view;
 
-    vk::UniqueBuffer m_vertex_buffer;
-    vk::UniqueBuffer m_index_buffer;
-    vk::UniqueDeviceMemory m_vertex_index_buffers_memory;
-    vk::DeviceSize m_vertex_buffer_size = 0;
-    vk::DeviceSize m_index_buffer_size = 0;
-    vk::DeviceSize m_vertex_index_buffers_memory_size = 0;
-    vk::DeviceSize m_vertex_buffer_memory_offset;
-    vk::DeviceSize m_index_buffer_memory_offset;
+    struct render_job_data {
+        vk::UniqueBuffer vertex_buffer;
+        vk::UniqueBuffer index_buffer;
+        vk::UniqueDeviceMemory vertex_index_buffers_memory;
+        vk::DeviceSize vertex_buffer_size = 0;
+        vk::DeviceSize index_buffer_size = 0;
+        vk::DeviceSize vertex_index_buffers_memory_size = 0;
+        vk::DeviceSize vertex_buffer_memory_offset;
+        vk::DeviceSize index_buffer_memory_offset;
+    };
+
+    render_job_pool<render_job_data, 2> m_render_job_pool;
 
     std::array<bool, 3> m_pressed_mouse_buttons;
     double m_mouse_wheel_pos = 0.0;

@@ -13,7 +13,9 @@ namespace squadbox {
 
 class vulkan_manager {
 public:
-    friend vulkan_manager init_vulkan(gsl::not_null<GLFWwindow*> window);
+    vulkan_manager(gsl::not_null<GLFWwindow*> window);
+    vulkan_manager(vulkan_manager&&) = default;
+    ~vulkan_manager();
 
     void resize_framebuffer(std::uint32_t width, std::uint32_t height);
 
@@ -24,9 +26,8 @@ public:
     const vk::RenderPass& render_pass() const { return m_render_pass.get(); }
     const vk::SwapchainKHR& swapchain() const { return m_swapchain.get(); }
 
-    void set_current_framebuffer_idx(std::uint32_t idx) { m_current_framebuffer_idx = idx; }
-    std::uint32_t current_framebuffer_idx() const { return m_current_framebuffer_idx; }
-    const vk::Framebuffer& current_framebuffer() const { return m_framebuffers.at(m_current_framebuffer_idx).get(); }
+    vk::Framebuffer get_framebuffer(std::uint32_t idx) const { return m_framebuffers[idx].get(); }
+    std::uint32_t num_frames() const { return static_cast<std::uint32_t>(m_framebuffers.size()); }
     std::uint32_t framebuffer_width() const { return m_framebuffer_width; }
     std::uint32_t framebuffer_height() const { return m_framebuffer_height; }
 
@@ -35,8 +36,6 @@ public:
     const vk::SurfaceFormatKHR& surface_format() const { return m_surface_format; }
 
 private:
-    vulkan_manager(gsl::not_null<GLFWwindow*> window);
-
     vk::UniqueInstance m_instance;
     vk::PhysicalDevice m_physical_device;
     vk::UniqueSurfaceKHR m_surface;
@@ -45,7 +44,6 @@ private:
     vk::UniqueSwapchainKHR m_swapchain;
     std::vector<std::tuple<vk::Image, vk::UniqueImageView>> m_swapchain_images;
     std::vector<vk::UniqueFramebuffer> m_framebuffers;
-    std::uint32_t m_current_framebuffer_idx;
 
     std::size_t m_graphics_queue_family_index;
     std::size_t m_present_queue_family_index;
@@ -53,10 +51,6 @@ private:
     std::uint32_t m_framebuffer_width;
     std::uint32_t m_framebuffer_height;
 };
-
-inline vulkan_manager init_vulkan(gsl::not_null<GLFWwindow*> window) {
-    return { window };
-}
 
 }
 

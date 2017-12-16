@@ -155,6 +155,10 @@ vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
     resize_framebuffer(width, height);
 }
 
+vulkan_manager::~vulkan_manager() {
+    m_device->waitIdle();
+}
+
 void vulkan_manager::resize_framebuffer(const std::uint32_t width, const std::uint32_t height) {
     m_device->waitIdle();
 
