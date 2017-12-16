@@ -1,4 +1,4 @@
 .vs/
 Debug/
-shaders/compiled/
+code/shaders/compiled/
 imgui.ini

@@ -18,11 +18,11 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
     m_device_memory_props = vulkan_manager.physical_device().getMemoryProperties();
 
     static const std::uint32_t vert_shader_spv[] = {
-        #include "shaders/compiled/imgui.vert.spv.c"
+        #include "../shaders/compiled/imgui.vert.spv.c"
     };
 
     static const std::uint32_t frag_shader_spv[] = {
-        #include "shaders/compiled/imgui.frag.spv.c"
+        #include "../shaders/compiled/imgui.frag.spv.c"
     };
 
     m_vert_shader = [](const vk::Device& device) {

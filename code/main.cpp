@@ -1,7 +1,7 @@
-#include "imgui_glue.hpp"
-#include "vulkan_manager.hpp"
-#include "vulkan_utils.hpp"
-#include "glfw_wrappers.hpp"
+#include "gfx/imgui_glue.hpp"
+#include "gfx/vulkan_manager.hpp"
+#include "gfx/vulkan_utils.hpp"
+#include "gfx/glfw_wrappers.hpp"
 
 #include <boost/thread/executors/basic_thread_pool.hpp>
 #include <boost/thread/future.hpp>
