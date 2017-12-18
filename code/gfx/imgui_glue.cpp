@@ -1,5 +1,6 @@
 #include "imgui_glue.hpp"
 
+#include "render_manager.hpp"
 #include "vulkan_manager.hpp"
 #include "vulkan_utils.hpp"
 
@@ -13,7 +14,7 @@
 
 namespace squadbox::gfx {
 
-imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& vulkan_manager)
+imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& vulkan_manager, const render_manager& render_manager)
     : m_window(window), m_device(vulkan_manager.device()) {
     m_device_memory_props = vulkan_manager.physical_device().getMemoryProperties();
 
@@ -25,7 +26,7 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
         #include "../shaders/compiled/imgui.frag.spv.c"
     };
 
-    m_vert_shader = [](const vk::Device& device) {
+    m_persistent_render_data->vert_shader = [](const vk::Device& device) {
         vk::ShaderModuleCreateInfo vert_shader_ci;
         vert_shader_ci
             .setPCode(vert_shader_spv)
@@ -34,7 +35,7 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
         return device.createShaderModuleUnique(vert_shader_ci);
     }(m_device);
 
-    m_frag_shader = [](const vk::Device& device) {
+    m_persistent_render_data->frag_shader = [](const vk::Device& device) {
         vk::ShaderModuleCreateInfo frag_shader_ci;
         frag_shader_ci
             .setPCode(frag_shader_spv)
@@ -43,7 +44,7 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
         return device.createShaderModuleUnique(frag_shader_ci);
     }(m_device);
 
-    m_font_sampler = [](const vk::Device& device) {
+    m_persistent_render_data->font_sampler = [](const vk::Device& device) {
         vk::SamplerCreateInfo sampler_ci;
         sampler_ci
             .setMagFilter(vk::Filter::eLinear)
@@ -56,7 +57,7 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
         return device.createSamplerUnique(sampler_ci);
     }(m_device);
 
-    m_descriptor_set_layout = [](const vk::Device& device, const vk::Sampler& font_sampler) {
+    m_persistent_render_data->descriptor_set_layout = [](const vk::Device& device, const vk::Sampler& font_sampler) {
         std::array<vk::Sampler, 1> samplers = { font_sampler };
         
         std::array<vk::DescriptorSetLayoutBinding, 1> layout_bindings;
@@ -73,9 +74,9 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
             .setBindingCount(layout_bindings.size());
 
         return device.createDescriptorSetLayoutUnique(descriptor_set_layout_ci);
-    }(m_device, m_font_sampler.get());
+    }(m_device, m_persistent_render_data->font_sampler.get());
 
-    m_descriptor_pool = [](const vk::Device& device) {
+    m_persistent_render_data->descriptor_pool = [](const vk::Device& device) {
         vk::DescriptorPoolSize descriptor_pool_size;
         descriptor_pool_size
             .setType(vk::DescriptorType::eCombinedImageSampler)
@@ -91,8 +92,8 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
         return device.createDescriptorPoolUnique(descriptor_pool_ci);
     }(m_device);
 
-    m_descriptor_set = [](const vk::Device& device, const vk::DescriptorSetLayout& layout,
-                          const vk::DescriptorPool& pool) {
+    m_persistent_render_data->descriptor_set = [](const vk::Device& device, const vk::DescriptorSetLayout& layout,
+                                                  const vk::DescriptorPool& pool) {
         vk::DescriptorSetAllocateInfo descriptor_set_alloc_info;
         descriptor_set_alloc_info
             .setDescriptorPool(pool)
@@ -100,9 +101,9 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
             .setDescriptorSetCount(1);
 
         return std::move(device.allocateDescriptorSetsUnique(descriptor_set_alloc_info)[0]);
-    }(m_device, m_descriptor_set_layout.get(), m_descriptor_pool.get());
+    }(m_device, m_persistent_render_data->descriptor_set_layout.get(), m_persistent_render_data->descriptor_pool.get());
 
-    m_pipeline_layout = [](const vk::Device& device, const vk::DescriptorSetLayout& descriptor_set_layout) {
+    m_persistent_render_data->pipeline_layout = [](const vk::Device& device, const vk::DescriptorSetLayout& descriptor_set_layout) {
         /*
         shaders/imgui.vert:
         layout(push_constant) uniform uPushConstant {
@@ -127,10 +128,10 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
             .setPushConstantRangeCount(1);
 
         return device.createPipelineLayoutUnique(pipeline_layout_ci);
-    }(m_device, m_descriptor_set_layout.get());
+    }(m_device, m_persistent_render_data->descriptor_set_layout.get());
 
-    m_graphics_pipeline = [](const vk::Device& device, const vk::RenderPass& render_pass, const vk::PipelineLayout& pipeline_layout,
-                             const vk::ShaderModule& vertex_shader_module, const vk::ShaderModule& fragment_shader_module) {
+    m_persistent_render_data->graphics_pipeline = [](const vk::Device& device, const vk::RenderPass& render_pass, const vk::PipelineLayout& pipeline_layout,
+                                                     const vk::ShaderModule& vertex_shader_module, const vk::ShaderModule& fragment_shader_module) {
         vk::GraphicsPipelineCreateInfo graphics_pipeline_ci;
         std::vector<vk::DynamicState> enabled_dynamic_states;
 
@@ -241,10 +242,10 @@ imgui_glue::imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& 
             .setLayout(pipeline_layout);
 
         return device.createGraphicsPipelineUnique(nullptr, graphics_pipeline_ci);
-    }(m_device, vulkan_manager.render_pass(), m_pipeline_layout.get(),
-      m_vert_shader.get(), m_frag_shader.get());
+    }(m_device, render_manager.render_pass(), m_persistent_render_data->pipeline_layout.get(),
+      m_persistent_render_data->vert_shader.get(), m_persistent_render_data->frag_shader.get());
 
-    m_command_pool = [](const vk::Device& device, std::uint32_t graphics_queue_family_idx) {
+    m_persistent_render_data->command_pool = [](const vk::Device& device, std::uint32_t graphics_queue_family_idx) {
         vk::CommandPoolCreateInfo command_pool_ci;
         command_pool_ci
             .setQueueFamilyIndex(graphics_queue_family_idx);
@@ -368,7 +369,7 @@ render_job imgui_glue::load_font_textures() {
             .setDescriptorCount(1);
 
         device.updateDescriptorSets(descriptor_writes, nullptr);
-    }(m_device, m_font_sampler.get(), m_descriptor_set.get(), new_font_image_view.get());
+    }(m_device, m_persistent_render_data->font_sampler.get(), m_persistent_render_data->descriptor_set.get(), new_font_image_view.get());
 
     auto [font_staging_buffer, font_staging_buffer_memory]
         = [](const vk::Device& device, const vk::PhysicalDeviceMemoryProperties& device_memory_props,
@@ -469,14 +470,14 @@ render_job imgui_glue::load_font_textures() {
         command_buffer->end();
 
         return command_buffer;
-    }(m_device, m_command_pool.get(), font_staging_buffer.get(), new_font_image.get(), font_image_width, font_image_height);
+    }(m_device, m_persistent_render_data->command_pool.get(), font_staging_buffer.get(), new_font_image.get(), font_image_width, font_image_height);
 
-    m_font_image = std::move(new_font_image);
-    m_font_image_memory = std::move(new_font_image_memory);
-    m_font_image_view = std::move(new_font_image_view);
-    imgui_io.Fonts->SetTexID(reinterpret_cast<ImTextureID>(static_cast<VkImage>(m_font_image.get())));
+    m_persistent_render_data->font_image = std::move(new_font_image);
+    m_persistent_render_data->font_image_memory = std::move(new_font_image_memory);
+    m_persistent_render_data->font_image_view = std::move(new_font_image_view);
+    imgui_io.Fonts->SetTexID(reinterpret_cast<ImTextureID>(static_cast<VkImage>(m_persistent_render_data->font_image.get())));
 
-    return render_job { std::move(font_image_copy_command_buffer), std::make_tuple(std::move(font_staging_buffer), std::move(font_staging_buffer_memory)) };
+    return render_job { std::move(font_image_copy_command_buffer), std::make_tuple(std::move(font_staging_buffer), std::move(font_staging_buffer_memory)), m_persistent_render_data };
 }
 
 void imgui_glue::new_frame(std::chrono::duration<double> delta) {
@@ -524,16 +525,15 @@ render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_bu
 
     vk::CommandBufferAllocateInfo command_buffer_alloc_info;
     command_buffer_alloc_info
-        .setCommandPool(m_command_pool.get())
+        .setCommandPool(m_persistent_render_data->command_pool.get())
         .setLevel(vk::CommandBufferLevel::eSecondary)
         .setCommandBufferCount(1);
 
-    auto render_job = m_render_job_pool.create(m_device, command_buffer_alloc_info);
-    auto& render_data = render_job.data();
+    auto render_job = m_render_job_pool.create(m_device, command_buffer_alloc_info, m_persistent_render_data);
 
-    if (!render_data.vertex_buffer || !render_data.index_buffer
-        || render_data.vertex_buffer_size < required_vertex_buffer_size
-        || render_data.index_buffer_size < required_index_buffer_size) {
+    if (!render_job->vertex_buffer || !render_job->index_buffer
+        || render_job->vertex_buffer_size < required_vertex_buffer_size
+        || render_job->index_buffer_size < required_index_buffer_size) {
         auto new_vertex_buffer = [](const vk::Device& device, const vk::DeviceSize required_vertex_buffer_size) {
             vk::BufferCreateInfo vertex_buffer_ci;
             vertex_buffer_ci
@@ -588,23 +588,23 @@ render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_bu
                 return std::make_tuple(vk::UniqueDeviceMemory { nullptr }, required_device_memory_size,
                                        vertex_buffer_offset, index_buffer_offset);
             }
-        }(m_device, m_device_memory_props, new_vertex_buffer.get(), new_index_buffer.get(), render_data.vertex_index_buffers_memory_size);
+        }(m_device, m_device_memory_props, new_vertex_buffer.get(), new_index_buffer.get(), render_job->vertex_index_buffers_memory_size);
 
-        render_data.vertex_buffer = std::move(new_vertex_buffer);
-        render_data.vertex_buffer_size = required_vertex_buffer_size;
-        render_data.vertex_buffer_memory_offset = new_vertex_buffer_offset;
+        render_job->vertex_buffer = std::move(new_vertex_buffer);
+        render_job->vertex_buffer_size = required_vertex_buffer_size;
+        render_job->vertex_buffer_memory_offset = new_vertex_buffer_offset;
 
-        render_data.index_buffer = std::move(new_index_buffer);
-        render_data.index_buffer_size = required_index_buffer_size;
-        render_data.index_buffer_memory_offset = new_index_buffer_offset;
+        render_job->index_buffer = std::move(new_index_buffer);
+        render_job->index_buffer_size = required_index_buffer_size;
+        render_job->index_buffer_memory_offset = new_index_buffer_offset;
 
         if (new_vertex_index_buffers_memory) {
-            render_data.vertex_index_buffers_memory = std::move(new_vertex_index_buffers_memory);
-            render_data.vertex_index_buffers_memory_size = new_vertex_index_buffers_memory_size;
+            render_job->vertex_index_buffers_memory = std::move(new_vertex_index_buffers_memory);
+            render_job->vertex_index_buffers_memory_size = new_vertex_index_buffers_memory_size;
         }
 
-        m_device.bindBufferMemory(render_data.vertex_buffer.get(), render_data.vertex_index_buffers_memory.get(), render_data.vertex_buffer_memory_offset);
-        m_device.bindBufferMemory(render_data.index_buffer.get(), render_data.vertex_index_buffers_memory.get(), render_data.index_buffer_memory_offset);
+        m_device.bindBufferMemory(render_job->vertex_buffer.get(), render_job->vertex_index_buffers_memory.get(), render_job->vertex_buffer_memory_offset);
+        m_device.bindBufferMemory(render_job->index_buffer.get(), render_job->vertex_index_buffers_memory.get(), render_job->index_buffer_memory_offset);
     }
 
     [](const vk::Device& device, const vk::DeviceMemory& vertex_index_buffers_memory,
@@ -625,8 +625,8 @@ render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_bu
 
         device.flushMappedMemoryRanges({ vertex_mapped_memory });
         device.unmapMemory(vertex_index_buffers_memory);
-    }(m_device, render_data.vertex_index_buffers_memory.get(),
-      render_data.vertex_buffer_size, render_data.vertex_buffer_memory_offset,
+    }(m_device, render_job->vertex_index_buffers_memory.get(),
+      render_job->vertex_buffer_size, render_job->vertex_buffer_memory_offset,
       imgui_draw_data);
 
     [](const vk::Device& device, const vk::DeviceMemory& vertex_index_buffers_memory,
@@ -647,8 +647,8 @@ render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_bu
 
         device.flushMappedMemoryRanges({ index_mapped_memory });
         device.unmapMemory(vertex_index_buffers_memory);
-    }(m_device, render_data.vertex_index_buffers_memory.get(),
-      render_data.index_buffer_size, render_data.index_buffer_memory_offset,
+    }(m_device, render_job->vertex_index_buffers_memory.get(),
+      render_job->index_buffer_size, render_job->index_buffer_memory_offset,
       imgui_draw_data);
 
     const auto& command_buffer = render_job.command_buffer();
@@ -660,10 +660,10 @@ render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_bu
 
     command_buffer.begin(command_buffer_begin_info);
 
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.get());
-    command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipeline_layout.get(), 0, { m_descriptor_set.get() }, nullptr);
-    command_buffer.bindVertexBuffers(0, { render_data.vertex_buffer.get() }, { 0 });
-    command_buffer.bindIndexBuffer(render_data.index_buffer.get(), 0, vk::IndexType::eUint16);
+    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_persistent_render_data->graphics_pipeline.get());
+    command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_persistent_render_data->pipeline_layout.get(), 0, { m_persistent_render_data->descriptor_set.get() }, nullptr);
+    command_buffer.bindVertexBuffers(0, { render_job->vertex_buffer.get() }, { 0 });
+    command_buffer.bindIndexBuffer(render_job->index_buffer.get(), 0, vk::IndexType::eUint16);
 
     {
         vk::Viewport viewport;
@@ -682,12 +682,12 @@ render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_bu
         std::array<float, 2> scale;
         scale[0] = 2.0f / ImGui::GetIO().DisplaySize.x;
         scale[1] = 2.0f / ImGui::GetIO().DisplaySize.y;
-        command_buffer.pushConstants<float>(m_pipeline_layout.get(), vk::ShaderStageFlagBits::eVertex, 0, scale);
+        command_buffer.pushConstants<float>(m_persistent_render_data->pipeline_layout.get(), vk::ShaderStageFlagBits::eVertex, 0, scale);
 
         std::array<float, 2> translate;
         translate[0] = -1.0f;
         translate[1] = -1.0f;
-        command_buffer.pushConstants<float>(m_pipeline_layout.get(), vk::ShaderStageFlagBits::eVertex, sizeof(scale), translate);
+        command_buffer.pushConstants<float>(m_persistent_render_data->pipeline_layout.get(), vk::ShaderStageFlagBits::eVertex, sizeof(scale), translate);
     }
 
     {

@@ -19,6 +19,7 @@ struct GLFWwindow;
 namespace squadbox::gfx {
 
 class vulkan_manager;
+class render_manager;
 
 class imgui_glue {
 public:
@@ -32,7 +33,7 @@ public:
         int action;
     };
 
-    imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& vulkan_manager);
+    imgui_glue(gsl::not_null<GLFWwindow*> window, const vulkan_manager& vulkan_manager, const render_manager& render_manager);
     imgui_glue(const imgui_glue&) = delete;
     ~imgui_glue();
 
@@ -51,9 +52,6 @@ private:
     vk::Device m_device;
     vk::PhysicalDeviceMemoryProperties m_device_memory_props;
 
-    vk::UniqueShaderModule m_vert_shader;
-    vk::UniqueShaderModule m_frag_shader;
-
     /*
     shaders/imgui.frag:
     layout(set=0, binding=0) uniform sampler2D sTexture;
@@ -61,17 +59,23 @@ private:
     static const int font_sampler_descriptor_set_idx = 0;
     static const int font_sampler_binding_idx = 0;
 
-    vk::UniqueSampler m_font_sampler;
-    vk::UniqueDescriptorSetLayout m_descriptor_set_layout;
-    vk::UniqueDescriptorPool m_descriptor_pool;
-    vk::UniqueDescriptorSet m_descriptor_set;
-    vk::UniquePipelineLayout m_pipeline_layout;
-    vk::UniquePipeline m_graphics_pipeline;
-    vk::UniqueCommandPool m_command_pool;
+    struct persistent_data {
+        vk::UniqueShaderModule vert_shader;
+        vk::UniqueShaderModule frag_shader;
+        vk::UniqueSampler font_sampler;
+        vk::UniqueDescriptorSetLayout descriptor_set_layout;
+        vk::UniqueDescriptorPool descriptor_pool;
+        vk::UniqueDescriptorSet descriptor_set;
+        vk::UniquePipelineLayout pipeline_layout;
+        vk::UniquePipeline graphics_pipeline;
+        vk::UniqueCommandPool command_pool;
 
-    vk::UniqueImage m_font_image;
-    vk::UniqueDeviceMemory m_font_image_memory;
-    vk::UniqueImageView m_font_image_view;
+        vk::UniqueImage font_image;
+        vk::UniqueDeviceMemory font_image_memory;
+        vk::UniqueImageView font_image_view;
+    };
+
+    persistent_render_data<persistent_data> m_persistent_render_data;
 
     struct render_job_data {
         vk::UniqueBuffer vertex_buffer;
@@ -84,7 +88,7 @@ private:
         vk::DeviceSize index_buffer_memory_offset;
     };
 
-    render_job_pool<render_job_data, 2> m_render_job_pool;
+    render_job_pool<render_job_data, 2, persistent_data> m_render_job_pool;
 
     std::array<bool, 3> m_pressed_mouse_buttons;
     double m_mouse_wheel_pos = 0.0;

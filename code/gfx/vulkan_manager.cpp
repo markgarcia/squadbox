@@ -6,7 +6,8 @@
 
 namespace squadbox::gfx {
 
-vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
+vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window)
+    : m_window(window) {
     auto required_glfw_extensions = []() {
         std::uint32_t extensions_count;
         auto extensions_arr = glfwGetRequiredInstanceExtensions(&extensions_count);
@@ -28,7 +29,7 @@ vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
         if (result != vk::Result::eSuccess) throw std::runtime_error(vk::to_string(result));
 
         return vk::UniqueSurfaceKHR { vk::SurfaceKHR { surface }, vk::SurfaceKHRDeleter { instance } };
-    }(m_instance.get(), window);
+    }(m_instance.get(), m_window);
 
     m_physical_device = [](const vk::Instance& instance) {
         auto physical_devices = instance.enumeratePhysicalDevices();
@@ -117,191 +118,12 @@ vulkan_manager::vulkan_manager(gsl::not_null<GLFWwindow*> window) {
             }
         }
     }
-
-    m_render_pass = [](const vk::Device& device, const vk::SurfaceFormatKHR& surface_format) {
-        vk::AttachmentDescription color_attachment_desc;
-        color_attachment_desc
-            .setFormat(surface_format.format)
-            .setLoadOp(vk::AttachmentLoadOp::eClear)
-            .setStoreOp(vk::AttachmentStoreOp::eStore)
-            .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
-            .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
-            .setInitialLayout(vk::ImageLayout::eUndefined)
-            .setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
-
-        vk::AttachmentReference color_reference;
-        color_reference
-            .setAttachment(0)
-            .setLayout(vk::ImageLayout::eColorAttachmentOptimal);
-
-        std::array<vk::SubpassDescription, 1> subpasses;
-        subpasses[0]
-            .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
-            .setPColorAttachments(&color_reference)
-            .setColorAttachmentCount(1);
-
-        vk::RenderPassCreateInfo render_pass_ci;
-        render_pass_ci
-            .setPAttachments(&color_attachment_desc)
-            .setAttachmentCount(1)
-            .setPSubpasses(subpasses.data())
-            .setSubpassCount(subpasses.size());
-
-        return device.createRenderPassUnique(render_pass_ci);
-    }(m_device.get(), m_surface_format);
-
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-    resize_framebuffer(width, height);
 }
 
 vulkan_manager::~vulkan_manager() {
-    m_device->waitIdle();
-}
-
-void vulkan_manager::resize_framebuffer(const std::uint32_t width, const std::uint32_t height) {
-    m_device->waitIdle();
-
-    auto new_swapchain = [](const vk::PhysicalDevice& physical_device, const vk::Device& device,
-                            const vk::SurfaceKHR& surface, const vk::SurfaceFormatKHR& surface_format,
-                            const vk::SwapchainKHR& swapchain,
-                            std::uint32_t graphics_queue_family_index, std::uint32_t present_queue_family_index,
-                            std::uint32_t width, std::uint32_t height) {
-        vk::Extent2D swapchain_extent;
-
-        auto surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(surface);
-
-        if (surface_capabilities.currentExtent.width == std::numeric_limits<decltype(surface_capabilities.currentExtent.width)>::max()) {
-            swapchain_extent.width = std::clamp(width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
-            swapchain_extent.height = std::clamp(height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
-        }
-        else {
-            swapchain_extent = surface_capabilities.currentExtent;
-        }
-
-        vk::SurfaceTransformFlagBitsKHR pre_transform;
-        {
-            if (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
-                pre_transform = vk::SurfaceTransformFlagBitsKHR::eIdentity;
-            }
-            else {
-                pre_transform = surface_capabilities.currentTransform;
-            }
-        }
-
-        vk::CompositeAlphaFlagBitsKHR composite_alpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
-        {
-            std::array<vk::CompositeAlphaFlagBitsKHR, 4> composite_alpha_flags = {
-                vk::CompositeAlphaFlagBitsKHR::eOpaque,
-                vk::CompositeAlphaFlagBitsKHR::ePreMultiplied,
-                vk::CompositeAlphaFlagBitsKHR::ePostMultiplied,
-                vk::CompositeAlphaFlagBitsKHR::eInherit,
-            };
-            for (auto flag : composite_alpha_flags) {
-                if (surface_capabilities.supportedCompositeAlpha & flag) {
-                    composite_alpha = flag;
-                    break;
-                }
-            }
-        }
-
-        auto present_modes = physical_device.getSurfacePresentModesKHR(surface);
-        std::array<vk::PresentModeKHR, 2> required_present_modes = { vk::PresentModeKHR::eFifo, vk::PresentModeKHR::eImmediate };
-        auto present_mode = std::find_first_of(present_modes.begin(), present_modes.end(), required_present_modes.begin(), required_present_modes.end());
-        if (present_mode == present_modes.end()) throw std::runtime_error("Vulkan: required present mode(s) not found");
-
-        vk::SwapchainCreateInfoKHR swapchain_ci;
-        swapchain_ci
-            .setSurface(surface)
-            .setMinImageCount(surface_capabilities.minImageCount)
-            .setImageExtent(swapchain_extent)
-            .setImageFormat(surface_format.format)
-            .setImageColorSpace(surface_format.colorSpace)
-            .setImageUsage(vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc)
-            .setImageSharingMode(vk::SharingMode::eExclusive)
-            .setPreTransform(pre_transform)
-            .setCompositeAlpha(composite_alpha)
-            .setImageArrayLayers(1)
-            .setPresentMode(*present_mode)
-            .setClipped(true)
-            .setOldSwapchain(swapchain);
-
-        if (graphics_queue_family_index != present_queue_family_index) {
-            std::array<decltype(graphics_queue_family_index), 2> queue_families = { graphics_queue_family_index, present_queue_family_index };
-            swapchain_ci
-                .setImageSharingMode(vk::SharingMode::eConcurrent)
-                .setPQueueFamilyIndices(queue_families.data())
-                .setQueueFamilyIndexCount(queue_families.size());
-        }
-        else {
-            swapchain_ci
-                .setImageSharingMode(vk::SharingMode::eExclusive)
-                .setPQueueFamilyIndices(nullptr)
-                .setQueueFamilyIndexCount(0);
-        }
-
-        return device.createSwapchainKHRUnique(swapchain_ci);
-    }(m_physical_device, m_device.get(), m_surface.get(), m_surface_format, m_swapchain.get(),
-      m_graphics_queue_family_index, m_present_queue_family_index, width, height);
-
-    auto new_swapchain_images = [](const vk::Device& device, const vk::SurfaceFormatKHR& surface_format,
-                                   const vk::SwapchainKHR& swapchain) {
-        auto swapchain_images = device.getSwapchainImagesKHR(swapchain);
-
-        std::vector<std::tuple<vk::Image, vk::UniqueImageView>> swapchain_images_store;
-        swapchain_images_store.reserve(swapchain_images.size());
-
-        for (auto&& image : swapchain_images) {
-            vk::ImageViewCreateInfo image_view_ci;
-            image_view_ci
-                .setImage(image)
-                .setViewType(vk::ImageViewType::e2D)
-                .setFormat(surface_format.format)
-                .subresourceRange
-                    .setAspectMask(vk::ImageAspectFlagBits::eColor)
-                    .setBaseMipLevel(0)
-                    .setLevelCount(1)
-                    .setBaseArrayLayer(0)
-                    .setLayerCount(1);
-
-            auto image_view = device.createImageViewUnique(image_view_ci);
-            swapchain_images_store.emplace_back(image, std::move(image_view));
-        }
-
-        return swapchain_images_store;
-    }(m_device.get(), m_surface_format, new_swapchain.get());
-
-    auto new_framebuffers = [](const vk::Device& device, const vk::RenderPass& render_pass,
-                               const std::vector<std::tuple<vk::Image, vk::UniqueImageView>>& swapchain_images,
-                               const std::uint32_t width, const std::uint32_t height) {
-        std::array<vk::ImageView, 1> attachments;
-
-        vk::FramebufferCreateInfo framebuffer_ci;
-        framebuffer_ci
-            .setRenderPass(render_pass)
-            .setPAttachments(attachments.data())
-            .setAttachmentCount(attachments.size())
-            .setWidth(width)
-            .setHeight(height)
-            .setLayers(1);
-
-        std::vector<vk::UniqueFramebuffer> framebuffers;
-        framebuffers.reserve(swapchain_images.size());
-
-        for (auto&& swapchain_image : swapchain_images) {
-            attachments[0] = std::get<vk::UniqueImageView>(swapchain_image).get();
-            framebuffers.emplace_back(device.createFramebufferUnique(framebuffer_ci));
-        }
-
-        return framebuffers;
-    }(m_device.get(), m_render_pass.get(), new_swapchain_images, width, height);
-
-    m_framebuffers = std::move(new_framebuffers);
-    m_swapchain_images = std::move(new_swapchain_images);
-    m_swapchain = std::move(new_swapchain);
-
-    m_framebuffer_width = width;
-    m_framebuffer_height = height;
+    if (m_device) {
+        m_device->waitIdle();
+    }
 }
 
 }

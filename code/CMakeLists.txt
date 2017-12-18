@@ -5,6 +5,7 @@ set(SQUADBOX_SRC
     gfx/glfw_wrappers.hpp   gfx/glfw_wrappers.cpp
     gfx/imgui_glue.hpp      gfx/imgui_glue.cpp
     gfx/render_job.hpp      gfx/render_job.cpp
+    gfx/render_manager.hpp  gfx/render_manager.cpp
     gfx/vulkan_manager.hpp  gfx/vulkan_manager.cpp
     gfx/vulkan_utils.hpp    gfx/vulkan_utils.cpp)
 
