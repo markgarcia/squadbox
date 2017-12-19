@@ -12,10 +12,30 @@ namespace squadbox::gfx {
 
 render_manager::render_manager(const vulkan_manager& vulkan_manager)
     : m_vulkan_manager(&vulkan_manager) {
-    m_render_pass = [](const vk::Device& device, const vk::SurfaceFormatKHR& surface_format) {
-        vk::AttachmentDescription color_attachment_desc;
-        color_attachment_desc
+    m_depth_stencil_format = [](const vk::PhysicalDevice& physical_device) {
+        std::array<vk::Format, 1> depth_stencil_formats = {
+            //vk::Format::eD32SfloatS8Uint,
+            vk::Format::eD32Sfloat,
+            //vk::Format::eD24UnormS8Uint,
+            //vk::Format::eD16UnormS8Uint,
+            //vk::Format::eD16Unorm
+        };
+
+        for (const auto& format : depth_stencil_formats) {
+            auto format_props = physical_device.getFormatProperties(format);
+            if (format_props.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+                return format;
+            }
+        }
+
+        throw std::runtime_error("Vulkan: unable to find suitable depth format.");
+    }(m_vulkan_manager->physical_device());
+
+    m_render_pass = [](const vk::Device& device, const vk::SurfaceFormatKHR& surface_format, const vk::Format& depth_stencil_format) {
+        std::array<vk::AttachmentDescription, 2> attachments;
+        attachments[0]  // color
             .setFormat(surface_format.format)
+            .setSamples(vk::SampleCountFlagBits::e1)
             .setLoadOp(vk::AttachmentLoadOp::eClear)
             .setStoreOp(vk::AttachmentStoreOp::eStore)
             .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
@@ -23,26 +43,42 @@ render_manager::render_manager(const vulkan_manager& vulkan_manager)
             .setInitialLayout(vk::ImageLayout::eUndefined)
             .setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
 
+        attachments[1]  // depth/stencil
+            .setFormat(depth_stencil_format)
+            .setSamples(vk::SampleCountFlagBits::e1)
+            .setLoadOp(vk::AttachmentLoadOp::eClear)
+            .setStoreOp(vk::AttachmentStoreOp::eDontCare)
+            .setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
+            .setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
+            .setInitialLayout(vk::ImageLayout::eUndefined)
+            .setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
         vk::AttachmentReference color_reference;
         color_reference
             .setAttachment(0)
             .setLayout(vk::ImageLayout::eColorAttachmentOptimal);
 
+        vk::AttachmentReference depth_stencil_reference;
+        depth_stencil_reference
+            .setAttachment(1)
+            .setLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
         std::array<vk::SubpassDescription, 1> subpasses;
         subpasses[0]
             .setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
             .setPColorAttachments(&color_reference)
-            .setColorAttachmentCount(1);
+            .setColorAttachmentCount(1)
+            .setPDepthStencilAttachment(&depth_stencil_reference);
 
         vk::RenderPassCreateInfo render_pass_ci;
         render_pass_ci
-            .setPAttachments(&color_attachment_desc)
-            .setAttachmentCount(1)
+            .setPAttachments(attachments.data())
+            .setAttachmentCount(attachments.size())
             .setPSubpasses(subpasses.data())
             .setSubpassCount(subpasses.size());
 
         return device.createRenderPassUnique(render_pass_ci);
-    }(m_vulkan_manager->device(), m_vulkan_manager->surface_format());
+    }(m_vulkan_manager->device(), m_vulkan_manager->surface_format(), m_depth_stencil_format);
 
     m_primary_command_pool = [](const vk::Device& device, std::uint32_t graphics_queue_family_index) {
         vk::CommandPoolCreateInfo command_pool_ci;
@@ -73,8 +109,8 @@ void render_manager::resize_framebuffer(const std::uint32_t width, const std::ui
     auto new_swapchain = [](const vk::PhysicalDevice& physical_device, const vk::Device& device,
                             const vk::SurfaceKHR& surface, const vk::SurfaceFormatKHR& surface_format,
                             const vk::SwapchainKHR& swapchain,
-                            std::uint32_t graphics_queue_family_index, std::uint32_t present_queue_family_index,
-                            std::uint32_t width, std::uint32_t height) {
+                            const std::uint32_t graphics_queue_family_index, const std::uint32_t present_queue_family_index,
+                            const std::uint32_t width, const std::uint32_t height) {
         vk::Extent2D swapchain_extent;
 
         auto surface_capabilities = physical_device.getSurfaceCapabilitiesKHR(surface);
@@ -179,10 +215,49 @@ void render_manager::resize_framebuffer(const std::uint32_t width, const std::ui
         return swapchain_images_store;
     }(m_vulkan_manager->device(), m_vulkan_manager->surface_format(), new_swapchain.get());
 
+    auto new_depth_stencil = [](const vk::PhysicalDevice& physical_device, const vk::Device& device,
+                                const vk::Format& depth_stencil_format,
+                                const std::uint32_t width, const std::uint32_t height) {
+        vk::ImageCreateInfo depth_stencil_buffer_image_ci;
+        depth_stencil_buffer_image_ci
+            .setImageType(vk::ImageType::e2D)
+            .setFormat(depth_stencil_format)
+            .setExtent({ width, height, 1 })
+            .setMipLevels(1)
+            .setArrayLayers(1)
+            .setSamples(vk::SampleCountFlagBits::e1)
+            .setTiling(vk::ImageTiling::eOptimal)
+            .setUsage(vk::ImageUsageFlagBits::eDepthStencilAttachment);
+
+        auto depth_stencil_buffer_image = device.createImageUnique(depth_stencil_buffer_image_ci);
+        auto depth_stencil_buffer_memory = vk_utils::alloc_memory(device, physical_device.getMemoryProperties(),
+                                                          device.getImageMemoryRequirements(depth_stencil_buffer_image.get()),
+                                                          vk::MemoryPropertyFlagBits::eDeviceLocal);
+        device.bindImageMemory(depth_stencil_buffer_image.get(), depth_stencil_buffer_memory.get(), 0);
+
+        vk::ImageViewCreateInfo depth_stencil_buffer_image_view_ci;
+        depth_stencil_buffer_image_view_ci
+            .setImage(depth_stencil_buffer_image.get())
+            .setViewType(vk::ImageViewType::e2D)
+            .setFormat(depth_stencil_format)
+            .subresourceRange
+                .setAspectMask(vk::ImageAspectFlagBits::eDepth /*| vk::ImageAspectFlagBits::eStencil*/)
+                .setBaseMipLevel(0)
+                .setLevelCount(1)
+                .setBaseArrayLayer(0)
+                .setLayerCount(1);
+
+        auto depth_stencil_buffer_image_view = device.createImageViewUnique(depth_stencil_buffer_image_view_ci);
+
+        return std::make_tuple(std::move(depth_stencil_buffer_memory), std::move(depth_stencil_buffer_image), std::move(depth_stencil_buffer_image_view));
+    }(m_vulkan_manager->physical_device(), m_vulkan_manager->device(), m_depth_stencil_format, width, height);
+
     auto new_framebuffers = [](const vk::Device& device, const vk::RenderPass& render_pass,
                                const std::vector<std::tuple<vk::Image, vk::UniqueImageView>>& swapchain_images,
+                               const vk::ImageView& depth_stencil_buffer_image_view,
                                const std::uint32_t width, const std::uint32_t height) {
-        std::array<vk::ImageView, 1> attachments;
+        std::array<vk::ImageView, 2> attachments;
+        attachments[1] = depth_stencil_buffer_image_view;
 
         vk::FramebufferCreateInfo framebuffer_ci;
         framebuffer_ci
@@ -202,8 +277,10 @@ void render_manager::resize_framebuffer(const std::uint32_t width, const std::ui
         }
 
         return framebuffers;
-    }(m_vulkan_manager->device(), m_render_pass.get(), new_swapchain_images, width, height);
+    }(m_vulkan_manager->device(), m_render_pass.get(), new_swapchain_images,
+      std::get<vk::UniqueImageView>(new_depth_stencil).get(), width, height);
 
+    m_depth_stencil = std::move(new_depth_stencil);
     m_framebuffers = std::move(new_framebuffers);
     m_swapchain_images = std::move(new_swapchain_images);
     m_swapchain = std::move(new_swapchain);
@@ -235,12 +312,16 @@ void render_manager::begin_frame() {
 
     current_frame.primary_command_buffer->begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
+    std::array<vk::ClearValue, 2> clear_values;
+    clear_values[0].color = m_clear_color;
+    clear_values[1].depthStencil = { 1.0f, 0 };
+
     vk::RenderPassBeginInfo render_pass_begin_info;
     render_pass_begin_info
         .setRenderPass(m_render_pass.get())
         .setFramebuffer(current_frame.framebuffer)
-        .setPClearValues(&m_clear_color)
-        .setClearValueCount(1)
+        .setPClearValues(clear_values.data())
+        .setClearValueCount(clear_values.size())
         .renderArea.extent
         .setWidth(framebuffer_width())
         .setHeight(framebuffer_height());

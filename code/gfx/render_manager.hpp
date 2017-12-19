@@ -18,7 +18,7 @@ public:
     ~render_manager();
 
     void resize_framebuffer(std::uint32_t width, std::uint32_t height);
-    void set_clear_color(vk::ClearValue color) { m_clear_color = color; }
+    void set_clear_color(vk::ClearColorValue color) { m_clear_color = color; }
 
     void begin_frame();
     void end_frame();
@@ -53,13 +53,16 @@ private:
     vk::UniqueSwapchainKHR m_swapchain;
     std::vector<std::tuple<vk::Image, vk::UniqueImageView>> m_swapchain_images;
     std::vector<vk::UniqueFramebuffer> m_framebuffers;
+    std::tuple<vk::UniqueDeviceMemory, vk::UniqueImage, vk::UniqueImageView> m_depth_stencil;
+    vk::UniqueCommandPool m_primary_command_pool;
+
     std::uint32_t m_framebuffer_width;
     std::uint32_t m_framebuffer_height;
-    vk::UniqueCommandPool m_primary_command_pool;
+    vk::Format m_depth_stencil_format;
 
     std::array<frame_data, 3> m_frames;
     std::uint32_t m_current_frame_idx = 0;
-    vk::ClearValue m_clear_color;
+    vk::ClearColorValue m_clear_color;
 };
 
 }
