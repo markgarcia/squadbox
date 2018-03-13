@@ -2,7 +2,7 @@
 
 namespace squadbox::gfx {
 
-std::mutex glfw_raii::mutex;
-std::string glfw_raii::last_glfw_error;
+std::mutex glfw_manager::mutex;
+std::string glfw_manager::last_glfw_error;
 
 }

@@ -4,7 +4,7 @@
 
 namespace squadbox::gfx::vk_utils {
 
-std::uint32_t get_memory_type_index(const vk::Device& device, const vk::PhysicalDeviceMemoryProperties& device_memory_properties,
+std::uint32_t get_memory_type_index(const vk::PhysicalDeviceMemoryProperties& device_memory_properties,
                                     const vk::MemoryRequirements& memory_requirements, vk::MemoryPropertyFlags required_memory_props) {
     for (std::uint32_t i = 0; i < device_memory_properties.memoryTypeCount; ++i) {
         if ((memory_requirements.memoryTypeBits & (1 << i))
@@ -20,9 +20,9 @@ vk::UniqueDeviceMemory alloc_memory(const vk::Device& device, const vk::Physical
                                     const vk::MemoryRequirements& memory_requirements, vk::MemoryPropertyFlags required_memory_props) {
     std::uint32_t memory_type_index;
     try {
-        memory_type_index = get_memory_type_index(device, device_memory_properties, memory_requirements, required_memory_props);
+        memory_type_index = get_memory_type_index(device_memory_properties, memory_requirements, required_memory_props);
     }
-    catch (const std::runtime_error& e) {
+    catch (const std::runtime_error&) {
         std::throw_with_nested(std::runtime_error("Vulkan: failed to allocate required memory type"));
     }
 

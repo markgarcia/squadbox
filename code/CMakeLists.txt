@@ -2,12 +2,23 @@
 set(SQUADBOX_SRC
 	main.cpp
     
+    console_ui.hpp          console_ui.cpp
+    
+    gfx/camera.hpp          gfx/camera.cpp
     gfx/glfw_wrappers.hpp   gfx/glfw_wrappers.cpp
+    gfx/gpu_mesh.hpp        gfx/gpu_mesh.cpp
     gfx/imgui_glue.hpp      gfx/imgui_glue.cpp
+    gfx/mesh.hpp            gfx/mesh.cpp
     gfx/render_job.hpp      gfx/render_job.cpp
     gfx/render_manager.hpp  gfx/render_manager.cpp
     gfx/vulkan_manager.hpp  gfx/vulkan_manager.cpp
-    gfx/vulkan_utils.hpp    gfx/vulkan_utils.cpp)
+    gfx/vulkan_utils.hpp    gfx/vulkan_utils.cpp
+
+    gfx/primitives/box.hpp  gfx/primitives/box.cpp
+
+    gfx/render_techniques/flat_shading.hpp  gfx/render_techniques/flat_shading.cpp
+    
+    test_scenes/cube.hpp    test_scenes/cube.cpp)
 
 add_executable(squadbox ${SQUADBOX_SRC})
 
@@ -73,17 +84,20 @@ endif()
 
 target_compile_definitions(squadbox PRIVATE
     BOOST_THREAD_PROVIDES_EXECUTORS
-    BOOST_THREAD_VERSION=4)
+    BOOST_THREAD_VERSION=4
+    BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE)
 
 target_link_libraries(squadbox
     Vulkan::Vulkan
     glfw glm
     assimp
     imgui
-    Boost::boost Boost::thread Boost::dynamic_linking)
+    ${Boost_LIBRARIES} Boost::dynamic_linking)
 
 compile_glsl(TARGET squadbox
     OUTPUT_DIR ./shaders/compiled/
     FILES
     ./shaders/imgui.vert
-    ./shaders/imgui.frag)
+    ./shaders/imgui.frag
+    ./shaders/flat.vert
+    ./shaders/flat.frag)

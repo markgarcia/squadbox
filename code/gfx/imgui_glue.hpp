@@ -77,7 +77,7 @@ private:
 
     persistent_render_data<persistent_data> m_persistent_render_data;
 
-    struct render_job_data {
+    struct render_job_data : render_job_command_buffer_base {
         vk::UniqueBuffer vertex_buffer;
         vk::UniqueBuffer index_buffer;
         vk::UniqueDeviceMemory vertex_index_buffers_memory;
@@ -88,7 +88,7 @@ private:
         vk::DeviceSize index_buffer_memory_offset;
     };
 
-    render_job_pool<render_job_data, 2, persistent_data> m_render_job_pool;
+    render_job_pool<render_job_data, 2> m_render_job_pool;
 
     std::array<bool, 3> m_pressed_mouse_buttons;
     double m_mouse_wheel_pos = 0.0;

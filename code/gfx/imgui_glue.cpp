@@ -557,8 +557,8 @@ render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_bu
         auto[ new_vertex_index_buffers_memory, new_vertex_index_buffers_memory_size,
               new_vertex_buffer_offset, new_index_buffer_offset ]
             = [](const vk::Device& device, const vk::PhysicalDeviceMemoryProperties& device_memory_props,
-                const vk::Buffer& new_vertex_buffer, const vk::Buffer& new_index_buffer,
-                const vk::DeviceSize current_vertex_index_buffers_memory_size) {
+                 const vk::Buffer& new_vertex_buffer, const vk::Buffer& new_index_buffer,
+                 const vk::DeviceSize current_vertex_index_buffers_memory_size) {
             const auto vertex_buffer_memory_reqs = device.getBufferMemoryRequirements(new_vertex_buffer);
             const auto index_buffer_memory_reqs = device.getBufferMemoryRequirements(new_index_buffer);
 
@@ -571,8 +571,8 @@ render_job imgui_glue::render(const vk::CommandBufferInheritanceInfo& command_bu
             const auto required_device_memory_size = vertex_buffer_offset + index_buffer_offset + index_buffer_memory_reqs.size;
 
             if (current_vertex_index_buffers_memory_size < required_device_memory_size) {
-                const auto vertex_buffer_memory_type_index = vk_utils::get_memory_type_index(device, device_memory_props, vertex_buffer_memory_reqs, vk::MemoryPropertyFlagBits::eHostVisible);
-                const auto index_buffer_memory_type_index = vk_utils::get_memory_type_index(device, device_memory_props, index_buffer_memory_reqs, vk::MemoryPropertyFlagBits::eHostVisible);
+                const auto vertex_buffer_memory_type_index = vk_utils::get_memory_type_index(device_memory_props, vertex_buffer_memory_reqs, vk::MemoryPropertyFlagBits::eHostVisible);
+                const auto index_buffer_memory_type_index = vk_utils::get_memory_type_index(device_memory_props, index_buffer_memory_reqs, vk::MemoryPropertyFlagBits::eHostVisible);
 
                 assert(vertex_buffer_memory_type_index == index_buffer_memory_type_index);
 

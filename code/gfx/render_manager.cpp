@@ -87,6 +87,17 @@ render_manager::render_manager(const vulkan_manager& vulkan_manager)
         return device.createCommandPoolUnique(command_pool_ci);
     }(m_vulkan_manager->device(), m_vulkan_manager->graphics_queue_family_index());
 
+    m_render_threads = [](const vk::Device& device, const std::uint32_t graphics_queue_family_index) {
+        std::vector<render_thread> render_threads;
+        render_threads.reserve(std::thread::hardware_concurrency());
+        
+        for (unsigned int i = 0; i < std::thread::hardware_concurrency(); ++i) {
+            render_threads.emplace_back(device, graphics_queue_family_index);
+        }
+        
+        return render_threads;
+    }(m_vulkan_manager->device(), m_vulkan_manager->graphics_queue_family_index());
+
     int width, height;
     glfwGetFramebufferSize(m_vulkan_manager->window(), &width, &height);
     resize_framebuffer(width, height);
@@ -300,7 +311,7 @@ void render_manager::begin_frame() {
     }
 
     device.resetFences({ current_frame.fence.get() });
-    current_frame.jobs.clear();
+    current_frame.render_jobs.clear();
 
     current_frame.primary_command_buffer = gfx::vk_utils::create_primary_command_buffer(device, m_primary_command_pool.get());
 
@@ -338,6 +349,18 @@ void render_manager::begin_frame() {
 void render_manager::end_frame() {
     auto& current_frame = m_frames[m_current_frame_idx];
 
+    for (auto& render_thread : m_render_threads) {
+        render_thread.finish_jobs();
+        current_frame.render_jobs.insert(current_frame.render_jobs.end(),
+                                         std::make_move_iterator(render_thread.m_render_jobs.begin()),
+                                         std::make_move_iterator(render_thread.m_render_jobs.end()));
+        render_thread.m_render_jobs.clear();
+    }
+
+    for (const auto& render_job : current_frame.render_jobs) {
+        current_frame.primary_command_buffer->executeCommands({ render_job.command_buffer() });
+    }
+
     current_frame.primary_command_buffer->endRenderPass();
     current_frame.primary_command_buffer->end();
 
@@ -366,30 +389,6 @@ void render_manager::end_frame() {
     m_current_frame_idx = (m_current_frame_idx + 1) % num_frames();
 }
 
-void render_manager::add_render_job(const render_job& render_job) {
-    auto& current_frame = m_frames[m_current_frame_idx];
-    current_frame.jobs.push_back(render_job);
-    current_frame.primary_command_buffer->executeCommands({ render_job.command_buffer() });
-}
-
-void render_manager::add_render_job(render_job&& render_job) {
-    auto& current_frame = m_frames[m_current_frame_idx];
-    current_frame.jobs.push_back(std::move(render_job));
-    current_frame.primary_command_buffer->executeCommands({ render_job.command_buffer() });
-}
-
-vk::CommandBufferInheritanceInfo render_manager::command_buffer_inheritance_info() {
-    auto& current_frame = m_frames[m_current_frame_idx];
-
-    vk::CommandBufferInheritanceInfo command_buffer_inheritance_info;
-    command_buffer_inheritance_info
-        .setRenderPass(render_pass())
-        .setSubpass(0)
-        .setFramebuffer(current_frame.framebuffer);
-
-    return command_buffer_inheritance_info;
-}
-
 void render_manager::render_immediately(const render_job& render_job) {
     auto queue = m_vulkan_manager->device().getQueue(m_vulkan_manager->graphics_queue_family_index(), 0);
 
@@ -401,6 +400,65 @@ void render_manager::render_immediately(const render_job& render_job) {
     queue.submit({ submit_info }, nullptr);
 
     m_vulkan_manager->device().waitIdle();
+}
+
+render_thread::render_thread(const render_manager& render_manager)
+    : m_render_manager(&render_manager), m_job_queue(1) {
+    m_thread = std::thread([this] {
+        std::function<void(render_thread&)> job;
+
+        while (true) {
+            while (m_job_queue.wait_pull_front(job) == boost::concurrent::queue_op_status::success) {
+                job(*this);
+            }
+        }
+    });
+}
+
+void render_thread::add_render_job(const render_job& render_job) {
+    m_render_jobs.push_back(render_job);
+}
+
+void render_thread::add_render_job(render_job&& render_job) {
+    m_render_jobs.push_back(std::move(render_job));
+}
+
+void render_thread::finish_jobs() {
+    
+}
+
+vk::UniqueDescriptorSet render_thread::allocate_descriptor_set(const vk::DescriptorSetLayout& layout) const {
+    auto descriptor_pool = m_render_manager->m_descriptor_pool.synchronize();
+
+    vk::DescriptorSetAllocateInfo descriptor_set_alloc_info;
+    descriptor_set_alloc_info
+        .setDescriptorPool(descriptor_pool->get())
+        .setPSetLayouts(&layout)
+        .setDescriptorSetCount(1);
+
+    return std::move(m_render_manager->m_vulkan_manager->device().allocateDescriptorSetsUnique(descriptor_set_alloc_info)[0]);
+}
+
+vk::UniqueCommandBuffer render_thread::allocate_command_buffer() const {
+    vk::CommandBufferAllocateInfo command_buffer_alloc_info;
+    command_buffer_alloc_info
+        .setCommandPool(m_command_pool.get())
+        .setLevel(vk::CommandBufferLevel::eSecondary)
+        .setCommandBufferCount(1);
+
+    return std::move(m_render_manager->m_vulkan_manager->device().allocateCommandBuffersUnique(command_buffer_alloc_info)[0]);
+}
+
+const vk::CommandBufferInheritanceInfo& render_thread::command_buffer_inheritance_info() const {
+    /*auto& current_frame = m_render_manager->m_frames[m_render_manager->m_current_frame_idx];
+
+    vk::CommandBufferInheritanceInfo command_buffer_inheritance_info;
+    command_buffer_inheritance_info
+        .setRenderPass(m_render_manager->render_pass())
+        .setSubpass(0)
+        .setFramebuffer(current_frame.framebuffer);*/
+
+    return m_command_buffer_inheritance_info;
 }
 
 }
