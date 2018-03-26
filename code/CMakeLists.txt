@@ -2,17 +2,18 @@
 set(SQUADBOX_SRC
 	main.cpp
     
-    console_ui.hpp          console_ui.cpp
+    console_ui.hpp  console_ui.cpp
     
-    gfx/camera.hpp          gfx/camera.cpp
-    gfx/glfw_wrappers.hpp   gfx/glfw_wrappers.cpp
-    gfx/gpu_mesh.hpp        gfx/gpu_mesh.cpp
-    gfx/imgui_glue.hpp      gfx/imgui_glue.cpp
-    gfx/mesh.hpp            gfx/mesh.cpp
-    gfx/render_job.hpp      gfx/render_job.cpp
-    gfx/render_manager.hpp  gfx/render_manager.cpp
-    gfx/vulkan_manager.hpp  gfx/vulkan_manager.cpp
-    gfx/vulkan_utils.hpp    gfx/vulkan_utils.cpp
+    gfx/camera.hpp              gfx/camera.cpp
+    gfx/glfw_wrappers.hpp       gfx/glfw_wrappers.cpp
+    gfx/gpu_memory_pool.hpp     gfx/gpu_memory_pool.cpp
+    gfx/gpu_mesh.hpp            gfx/gpu_mesh.cpp
+    gfx/imgui_glue.hpp          gfx/imgui_glue.cpp
+    gfx/mesh.hpp                gfx/mesh.cpp
+    gfx/render_job.hpp          gfx/render_job.cpp
+    gfx/render_manager.hpp      gfx/render_manager.cpp
+    gfx/vulkan_manager.hpp      gfx/vulkan_manager.cpp
+    gfx/vulkan_utils.hpp        gfx/vulkan_utils.cpp
 
     gfx/primitives/box.hpp  gfx/primitives/box.cpp
 
